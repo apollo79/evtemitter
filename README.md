@@ -1,0 +1,2 @@
+# evtemitter
+ Eventemitter for deno.
