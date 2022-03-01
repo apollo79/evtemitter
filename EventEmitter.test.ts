@@ -1,7 +1,7 @@
 import type { CustomEventMap, TypedCustomEvent } from "./EventEmitter.ts";
 import {
     assertEquals,
-    assertThrows,
+    // assertThrows,
     fail,
 } from "https://deno.land/std@0.92.0/testing/asserts.ts";
 
@@ -140,7 +140,8 @@ Deno.test("extend", () => {
 });
 
 Deno.test("extend with custom events", () => {
-    class Extending<E extends CustomEventMap = Record<never, never>> extends EventEmitter<Exclude<E, Events> & Events> {
+    class Extending<E extends CustomEventMap = Record<never, never>>
+        extends EventEmitter<Exclude<E, Events> & Events> {
         foo() {
             this.emit("pong", "pong");
         }

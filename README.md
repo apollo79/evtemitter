@@ -26,7 +26,7 @@ emitter.on("pong", (event) => {
 emitter.emit("pong", "hello");
 
 emitter.on("peng", (event) => {
-    assertEquals(event.detail.data, "peng emitted!")
+    assertEquals(event.detail.data, "peng emitted!");
 });
 
 emitter.emit("peng", {
