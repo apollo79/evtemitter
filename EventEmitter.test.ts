@@ -1,7 +1,6 @@
 import type { CustomEventMap, TypedCustomEvent } from "./EventEmitter.ts";
 import {
     assertEquals,
-    assertThrows,
     fail,
 } from "https://deno.land/std@0.92.0/testing/asserts.ts";
 
@@ -29,7 +28,7 @@ Deno.test("types of detail", () => {
     emitter.emit("pong", "hello");
 
     emitter.on("peng", (event) => {
-        assertEquals(event.detail.data, "peng emitted!")
+        assertEquals(event.detail.data, "peng emitted!");
     });
 
     emitter.emit("peng", {
