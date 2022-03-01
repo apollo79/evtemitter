@@ -5,7 +5,7 @@ export type Values<T> = T[keyof T];
 export type Fn<
     Params extends readonly unknown[] = readonly unknown[],
     Result = unknown,
-> = (...params: Params) => Result;
+    > = (...params: Params) => Result;
 
 export type TypedCustomEvent<Type extends string, Detail = unknown> =
     & CustomEvent<Detail>
@@ -14,11 +14,11 @@ export type TypedCustomEvent<Type extends string, Detail = unknown> =
 export type CustomEventCallback<
     Type extends string = string,
     Detail = unknown,
-> = Fn<[event: TypedCustomEvent<Type, Detail>], void>;
+    > = Fn<[event: TypedCustomEvent<Type, Detail>], void>;
 
 export type EventCallbackFromCustomEvent<
     T extends TypedCustomEvent<string, unknown>,
-> = Fn<[event: T], void>;
+    > = Fn<[event: T], void>;
 
 export type CustomEventMap = Record<string, CustomEvent>;
 
@@ -219,12 +219,7 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
      */
     emit<K extends keyof T & string>(
         type: K,
-        ...[detail]: (
-            unknown extends T[K]["detail"] ? [detail?: unknown]
-                : T[K]["detail"] extends undefined ? [detail?: undefined]
-                : T[K]["detail"] extends never ? []
-                : [detail: T[K]["detail"]]
-        )
+        ...[detail]: [detail: T[K]["detail"]]
     ): this {
         const event = EventEmitter.createEvent(
             type,

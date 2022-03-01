@@ -20,7 +20,7 @@ Deno.test("types of detail", () => {
         assertEquals(event.detail, undefined);
     });
 
-    emitter.emit("ping");
+    emitter.emit("ping", undefined);
 
     emitter.on("pong", (event) => {
         assertEquals(event.detail, "hello");
@@ -29,7 +29,7 @@ Deno.test("types of detail", () => {
     emitter.emit("pong", "hello");
 
     emitter.on("peng", (event) => {
-        assertEquals(event.detail.data, "peng emitted!")
+        assertEquals(event.detail.data, "peng emitted!");
     });
 
     emitter.emit("peng", {
@@ -119,4 +119,40 @@ Deno.test("chainable", () => {
         .off("foo", foo);
 
     ee.emit("foo", "bar");
+});
+
+Deno.test("extend", () => {
+    class Extending extends EventEmitter<Events> {
+        foo() {
+            this.emit("pong", "pong");
+        }
+    }
+
+    const ext = new Extending();
+
+    ext.on("pong", (event) => {
+        assertEquals(event.detail, "pong");
+    });
+
+    ext.foo();
+
+    ext.emit("pong", "pong");
+});
+
+Deno.test("extend with custom events", () => {
+    class Extending<E extends CustomEventMap = Record<never, never>> extends EventEmitter<Exclude<E, Events> & Events> {
+        foo() {
+            this.emit("pong", "pong");
+        }
+    }
+
+    const ext = new Extending();
+
+    ext.on("pong", (event) => {
+        assertEquals(event.detail, "pong");
+    });
+
+    ext.foo();
+
+    ext.emit("pong", "pong");
 });
