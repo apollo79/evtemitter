@@ -126,13 +126,13 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
     ): this {
         options = Object.assign(
             options,
-            { once: true }
+            { once: true },
         );
 
         this.addEventListener(
             types,
             callback,
-            options
+            options,
         );
 
         return this;
