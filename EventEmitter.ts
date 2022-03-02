@@ -124,15 +124,16 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
         callback: EventCallbackFromCustomEvent<T[K]>,
         options?: Parameters<EventTarget["addEventListener"]>[2],
     ): this {
-        const once = (
-            event: Parameters<EventCallbackFromCustomEvent<T[K]>>[0],
-        ) => {
-            this.removeEventListener(types, once, options);
+        options = Object.assign(
+            options,
+            { once: true }
+        );
 
-            callback(event);
-        };
-
-        this.addEventListener(types, callback);
+        this.addEventListener(
+            types,
+            callback,
+            options
+        );
 
         return this;
     }
