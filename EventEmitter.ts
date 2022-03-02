@@ -219,7 +219,7 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
      */
     emit<K extends keyof T & string>(
         type: K,
-        ...[detail]: ([detail: T[K]["detail"]])
+        ...[detail]: [detail: T[K]["detail"]]
     ): this {
         const event = EventEmitter.createEvent(
             type,
