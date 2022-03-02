@@ -27,8 +27,21 @@ export type EventTargetCompatible = Extract<
     Fn
 >;
 
-export class EventEmitter<T extends CustomEventMap = Record<never, never>>
-    extends EventTarget {
+type OnParams = Parameters<EventEmitter["addEventListener"]>;
+
+type CustomEventDetailParameter<
+    T extends Record<string, unknown>,
+    K extends keyof T,
+> = (
+    unknown extends T[K] ? [detail?: unknown]
+        : undefined extends T[K] ? [detail?: T[K]]
+        : T[K] extends never ? []
+        : [detail: T[K]]
+);
+
+export class EventEmitter<
+    T extends Record<string, unknown> = Record<never, never>,
+> extends EventTarget {
     /**
      * @var __listeners__ A Map with all listeners, sorted by event
      */
@@ -63,17 +76,17 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
     // @ts-expect-error <different implementation>
     addEventListener<K extends keyof T & string>(
         types: K | K[],
-        callback: EventCallbackFromCustomEvent<T[K]>,
+        callback: CustomEventCallback<K, T[K]>,
         options?: Parameters<EventTarget["addEventListener"]>[2],
     ): this {
         const doAdd = (
             type: K,
-            callback: EventCallbackFromCustomEvent<T[K]>,
-            options?: Parameters<EventTarget["addEventListener"]>[2],
+            callback: OnParams[1],
+            options?: OnParams[2],
         ) => {
             this
                 .getOrCreateListeners(type)
-                .add(callback as CustomEventCallback);
+                .add(callback as EventTargetCompatible);
 
             super.addEventListener(
                 type,
@@ -103,7 +116,7 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
      */
     once<K extends keyof T & string>(
         type: K,
-        callback: EventCallbackFromCustomEvent<T[K]>,
+        callback: CustomEventCallback<K, T[K]>,
         options?: Parameters<EventTarget["addEventListener"]>[2],
     ): this;
 
@@ -115,24 +128,21 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
      */
     once<K extends keyof T & string>(
         types: K[],
-        callback: EventCallbackFromCustomEvent<T[K]>,
+        callback: CustomEventCallback<K, T[K]>,
         options?: Parameters<EventTarget["addEventListener"]>[2],
     ): this;
 
     once<K extends keyof T & string>(
         types: K | K[],
-        callback: EventCallbackFromCustomEvent<T[K]>,
+        callback: CustomEventCallback<K, T[K]>,
         options?: Parameters<EventTarget["addEventListener"]>[2],
     ): this {
-        const once = (
-            event: Parameters<EventCallbackFromCustomEvent<T[K]>>[0],
-        ) => {
-            this.removeEventListener(types, once, options);
+        options = Object.assign(
+            options,
+            { once: true },
+        );
 
-            callback(event);
-        };
-
-        this.addEventListener(types, callback);
+        this.addEventListener(types, callback, options);
 
         return this;
     }
@@ -147,12 +157,12 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
     // @ts-expect-error <different implementation>
     removeEventListener<K extends keyof T & string>(
         types?: K | K[],
-        callback?: EventCallbackFromCustomEvent<T[K]>,
+        callback?: CustomEventCallback<K, T[K]>,
         options?: Parameters<EventTarget["removeEventListener"]>[2],
     ): this {
         const doRemove = (
             type: K,
-            optionalCallback?: EventCallbackFromCustomEvent<T[K]>,
+            optionalCallback?: CustomEventCallback<K, T[K]>,
         ) => {
             super.removeEventListener(
                 type,
@@ -206,7 +216,9 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
      * if either event's cancelable attribute value is false or its preventDefault() method was not invoked,
      * and false otherwise.
      */
-    dispatchEvent<E extends Values<T>>(type: E): boolean {
+    dispatchEvent<K extends keyof T & string>(
+        type: TypedCustomEvent<K, T[K]>,
+    ): boolean {
         return super.dispatchEvent(type);
     }
 
@@ -219,14 +231,12 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
      */
     emit<K extends keyof T & string>(
         type: K,
-        ...[detail]: [detail: T[K]["detail"]]
+        ...[detail]: CustomEventDetailParameter<T, K>
     ): this {
         const event = EventEmitter.createEvent(
             type,
             detail,
-        ) as unknown as Values<
-            T
-        >;
+        );
 
         this.dispatchEvent(event);
 
@@ -239,7 +249,10 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
      * @param timeout optional timeout
      * @returns a Promise containing event
      */
-    pull<K extends keyof T & string>(type: K, timeout?: number): Promise<T[K]> {
+    pull<K extends keyof T & string>(
+        type: K,
+        timeout?: number,
+    ): Promise<TypedCustomEvent<K, T[K]>> {
         return new Promise((resolve, reject) => {
             let timeoutId: number | null;
 

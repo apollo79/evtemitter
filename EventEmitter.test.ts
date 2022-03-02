@@ -1,16 +1,16 @@
-import type { CustomEventMap, TypedCustomEvent } from "./EventEmitter.ts";
+// import type { CustomEventMap, TypedCustomEvent } from "./EventEmitter.ts";
 import {
     assertEquals,
     // assertThrows,
     fail,
-} from "https://deno.land/std@0.92.0/testing/asserts.ts";
+} from "https://deno.land/std@0.127.0/testing/asserts.ts";
 
 import { EventEmitter } from "./EventEmitter.ts";
 
-interface Events extends CustomEventMap {
-    ping: TypedCustomEvent<"ping", undefined>;
-    pong: TypedCustomEvent<"pong", string>;
-    peng: TypedCustomEvent<"peng", { data: string }>;
+interface Events extends Record<string, unknown> {
+    ping: undefined;
+    pong: string;
+    peng: { data: string };
 }
 
 Deno.test("types of detail", () => {
@@ -20,7 +20,7 @@ Deno.test("types of detail", () => {
         assertEquals(event.detail, undefined);
     });
 
-    emitter.emit("ping", undefined);
+    emitter.emit("ping");
 
     emitter.on("pong", (event) => {
         assertEquals(event.detail, "hello");
@@ -140,8 +140,8 @@ Deno.test("extend", () => {
 });
 
 Deno.test("extend with custom events", () => {
-    class Extending<E extends CustomEventMap = Record<never, never>>
-        extends EventEmitter<Exclude<E, Events> & Events> {
+    class Extending<E extends Record<string, unknown> = Record<never, never>>
+        extends EventEmitter<E & Events> {
         foo() {
             this.emit("pong", "pong");
         }
