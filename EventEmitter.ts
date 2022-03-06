@@ -307,7 +307,7 @@ export class EventEmitter<
     subscribe<K extends keyof T & string>(
         type: K,
         callback: Fn<CustomEventDetailParameter<T, K>, void>,
-    ): Fn<never, void> {
+    ): Fn<[], void> {
         const fn: CustomEventCallback<K, T[K]> = ({ detail }) =>
             (callback as Fn<[T[K]], void>)(detail); // 🤔
 
