@@ -5,7 +5,7 @@ export type Values<T> = T[keyof T];
 export type Fn<
     Params extends readonly unknown[] = readonly unknown[],
     Result = unknown,
-    > = (...params: Params) => Result;
+> = (...params: Params) => Result;
 
 export type TypedCustomEvent<Type extends string, Detail = unknown> =
     & CustomEvent<Detail>
@@ -14,11 +14,11 @@ export type TypedCustomEvent<Type extends string, Detail = unknown> =
 export type CustomEventCallback<
     Type extends string = string,
     Detail = unknown,
-    > = Fn<[event: TypedCustomEvent<Type, Detail>], void>;
+> = Fn<[event: TypedCustomEvent<Type, Detail>], void>;
 
 export type EventCallbackFromCustomEvent<
     T extends TypedCustomEvent<string, unknown>,
-    > = Fn<[event: T], void>;
+> = Fn<[event: T], void>;
 
 export type CustomEventMap = Record<string, CustomEvent>;
 
@@ -32,16 +32,16 @@ type OnParams = Parameters<EventEmitter["addEventListener"]>;
 type CustomEventDetailParameter<
     T extends Record<string, unknown>,
     K extends keyof T,
-    > = (
-        unknown extends T[K] ? [detail?: unknown]
+> = (
+    unknown extends T[K] ? [detail?: unknown]
         : undefined extends T[K] ? [detail?: T[K]]
         : T[K] extends never ? []
         : [detail: T[K]]
-    );
+);
 
 export class EventEmitter<
     T extends Record<string, unknown> = Record<never, never>,
-    > extends EventTarget {
+> extends EventTarget {
     /**
      * @var __listeners__ A Map with all listeners, sorted by event
      */
@@ -138,7 +138,7 @@ export class EventEmitter<
         options?: Parameters<EventTarget["addEventListener"]>[2],
     ): this {
         const fixOptions: Parameters<EventTarget["addEventListener"]>[2] = {
-            once: true
+            once: true,
         };
 
         if (options === undefined) {
@@ -146,12 +146,12 @@ export class EventEmitter<
         } else if (typeof options === "boolean") {
             options = {
                 capture: options,
-                ...fixOptions
-            }
+                ...fixOptions,
+            };
         } else {
             Object.assign(
                 options,
-                fixOptions
+                fixOptions,
             );
         }
 
@@ -298,6 +298,8 @@ export class EventEmitter<
     publish = this.emit;
 
     /**
+     * Subscribe method.
+     * Returns a cleanup function to remove the added EventListener
      * @param type the event name the callback should listen to
      * @param callback the callback to execute when the event is dispatched
      * @returns cleanup function
@@ -305,7 +307,7 @@ export class EventEmitter<
     subscribe<K extends keyof T & string>(
         type: K,
         callback: Fn<CustomEventDetailParameter<T, K>, void>,
-    ): Fn<[never], void> {
+    ): Fn<never, void> {
         const fn: CustomEventCallback<K, T[K]> = ({ detail }) =>
             (callback as Fn<[T[K]], void>)(detail); // 🤔
 
