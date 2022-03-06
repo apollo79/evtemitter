@@ -7,11 +7,11 @@ import {
 
 import { EventEmitter } from "./EventEmitter.ts";
 
-interface Events extends Record<string, unknown> {
+type Events = Record<string, unknown> & {
     ping: undefined;
     pong: string;
     peng: { data: string };
-}
+};
 
 Deno.test("types of detail", () => {
     const emitter = new EventEmitter<Events>();
@@ -54,11 +54,11 @@ Deno.test("on", () => {
 Deno.test("once", () => {
     const ee = new EventEmitter<Events>();
 
-    ee.once("foo", (event) => {
+    ee.once("pong", (event) => {
         assertEquals(event.detail, "bar");
     });
 
-    ee.emit("foo", "bar");
+    ee.emit("pong", "bar");
 });
 
 Deno.test("off", () => {
@@ -140,8 +140,7 @@ Deno.test("extend", () => {
 });
 
 Deno.test("extend with custom events", () => {
-    class Extending<E extends Record<string, unknown> = Record<never, never>>
-        extends EventEmitter<E & Events> {
+    class Extending extends EventEmitter<Events> {
         foo() {
             this.emit("pong", "pong");
         }
