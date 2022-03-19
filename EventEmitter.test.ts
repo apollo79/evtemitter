@@ -1,35 +1,42 @@
-import type { CustomEventMap, TypedCustomEvent } from "./EventEmitter.ts";
+// import type { CustomEventMap, TypedCustomEvent } from "./EventEmitter.ts";
 import {
     assertEquals,
+    assertStrictEquals,
     // assertThrows,
     fail,
-} from "https://deno.land/std@0.92.0/testing/asserts.ts";
+} from "https://deno.land/std@0.127.0/testing/asserts.ts";
 
 import { EventEmitter } from "./EventEmitter.ts";
 
-interface Events extends CustomEventMap {
-    ping: TypedCustomEvent<"ping", undefined>;
-    pong: TypedCustomEvent<"pong", string>;
-    peng: TypedCustomEvent<"peng", { data: string }>;
-}
+type Events = Record<string, unknown> & {
+    ping: undefined;
+    pong: string;
+    peng: { data: string };
+};
 
 Deno.test("types of detail", () => {
     const emitter = new EventEmitter<Events>();
 
-    emitter.on("ping", (event) => {
-        assertEquals(event.detail, undefined);
+    emitter.on("ping", (detail) => {
+        console.log("ping: ", detail);
+
+        assertEquals(detail, undefined);
     });
 
-    emitter.emit("ping", undefined);
+    emitter.emit("ping");
 
-    emitter.on("pong", (event) => {
-        assertEquals(event.detail, "hello");
+    emitter.on("pong", (detail) => {
+        console.log("pong: ", detail);
+
+        assertEquals(detail, "hello");
     });
 
     emitter.emit("pong", "hello");
 
-    emitter.on("peng", (event) => {
-        assertEquals(event.detail.data, "peng emitted!");
+    emitter.on("peng", (detail) => {
+        console.log("peng: ", detail);
+
+        assertEquals(detail.data, "peng emitted!");
     });
 
     emitter.emit("peng", {
@@ -44,8 +51,8 @@ Deno.test("types of detail", () => {
 Deno.test("on", () => {
     const ee = new EventEmitter<Events>();
 
-    ee.on("foo", (event) => {
-        assertEquals(event.detail, "bar");
+    ee.on("foo", (detail) => {
+        assertEquals(detail, "bar");
     });
 
     ee.emit("foo", "bar");
@@ -54,11 +61,11 @@ Deno.test("on", () => {
 Deno.test("once", () => {
     const ee = new EventEmitter<Events>();
 
-    ee.once("foo", (event) => {
-        assertEquals(event.detail, "bar");
+    ee.once("pong", (detail) => {
+        assertEquals(detail, "bar");
     });
 
-    ee.emit("foo", "bar");
+    ee.emit("pong", "bar");
 });
 
 Deno.test("off", () => {
@@ -130,8 +137,8 @@ Deno.test("extend", () => {
 
     const ext = new Extending();
 
-    ext.on("pong", (event) => {
-        assertEquals(event.detail, "pong");
+    ext.on("pong", (detail) => {
+        assertEquals(detail, "pong");
     });
 
     ext.foo();
@@ -140,8 +147,7 @@ Deno.test("extend", () => {
 });
 
 Deno.test("extend with custom events", () => {
-    class Extending<E extends CustomEventMap = Record<never, never>>
-        extends EventEmitter<Exclude<E, Events> & Events> {
+    class Extending extends EventEmitter<Events> {
         foo() {
             this.emit("pong", "pong");
         }
@@ -149,11 +155,128 @@ Deno.test("extend with custom events", () => {
 
     const ext = new Extending();
 
-    ext.on("pong", (event) => {
-        assertEquals(event.detail, "pong");
+    ext.on("pong", (detail) => {
+        assertEquals(detail, "pong");
     });
 
     ext.foo();
 
     ext.emit("pong", "pong");
+});
+
+Deno.test("pub / sub", () => {
+    const ee = new EventEmitter<Events>();
+
+    const cleanup = ee.subscribe("pong", (detail) => {
+        assertEquals<string>(detail, "hello");
+    });
+
+    ee.emit("pong", "hello");
+
+    cleanup();
+
+    const cleanup2 = ee.subscribe("peng", (detail) => {
+        assertEquals<string>(detail.data, "hello");
+    });
+
+    ee.emit("peng", {
+        data: "hello",
+    });
+
+    cleanup2();
+});
+
+// https://github.com/jsejcksn/deno-utils/blob/main/event.test.ts
+
+Deno.test("EventEmitter.createEvent", async (ctx) => {
+    await ctx.step("created event has correct property values", () => {
+        const eventType = "name";
+        const eventDetail = { string: "", number: NaN };
+        const ev = EventEmitter.createEvent(eventType, eventDetail);
+
+        // type-checking
+        ev.type === eventType;
+        ev.detail === eventDetail;
+
+        assertStrictEquals(ev.type, eventType);
+        assertStrictEquals(ev.detail, eventDetail);
+    });
+});
+
+Deno.test("EventEmitter", async (ctx) => {
+    type CountMap = { adjustCount: "increment" | "decrement" };
+
+    await ctx.step("dispatches events", () => {
+        const target = new EventEmitter<CountMap>();
+        let count = 0;
+
+        target.addEventListener("adjustCount", ({ detail }) => {
+            count += detail === "increment" ? 1 : -1;
+        });
+
+        const incrementEvent = EventEmitter.createEvent(
+            "adjustCount",
+            "increment" as const,
+        );
+
+        target.dispatchEvent(incrementEvent);
+
+        target.dispatchEvent(incrementEvent);
+
+        target.dispatch("adjustCount", "decrement");
+
+        target.dispatch("adjustCount", "decrement");
+
+        target.dispatch("adjustCount", "increment");
+
+        assertStrictEquals(count, 1);
+    });
+
+    await ctx.step('correctly implements "once" option', () => {
+        const target = new EventEmitter<CountMap>();
+        let count = 0;
+
+        const cb = (ev: CustomEvent<CountMap["adjustCount"]>) => {
+            count += ev.detail === "increment" ? 1 : -1;
+        };
+
+        target.addEventListener("adjustCount", cb, { once: true });
+
+        const incrementEvent = EventEmitter.createEvent(
+            "adjustCount",
+            "increment" as const,
+        );
+
+        assertStrictEquals(count, 0);
+
+        target.dispatchEvent(incrementEvent);
+
+        assertStrictEquals(count, 1);
+
+        target.dispatchEvent(incrementEvent);
+
+        assertStrictEquals(count, 1);
+    });
+
+    await ctx.step('"subscribe" method returns "unsubscribe" function', () => {
+        const target = new EventEmitter<CountMap>();
+
+        let count = 0;
+
+        const unsubscribe = target.subscribe("adjustCount", (payload) => {
+            count += payload === "increment" ? 1 : -1;
+
+            unsubscribe();
+        });
+
+        assertStrictEquals(count, 0);
+
+        target.publish("adjustCount", "increment");
+
+        assertStrictEquals(count, 1);
+
+        target.publish("adjustCount", "increment");
+
+        assertStrictEquals(count, 1);
+    });
 });
