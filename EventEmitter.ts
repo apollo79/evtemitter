@@ -1,11 +1,9 @@
 // https://stackoverflow.com/questions/71224221/class-extending-eventemitter-with-type-parameter#comment125936600_71224221
 
-export type Values<T> = T[keyof T];
-
 export type Fn<
     Params extends readonly unknown[] = readonly unknown[],
     Result = unknown,
-> = (...params: Params) => Result;
+    > = (...params: Params) => Result;
 
 export type TypedCustomEvent<Type extends string, Detail = unknown> =
     & CustomEvent<Detail>
@@ -14,16 +12,16 @@ export type TypedCustomEvent<Type extends string, Detail = unknown> =
 export type CustomEventCallbackAddEventListener<
     Type extends string = string,
     Detail = unknown,
-> = Fn<[event: TypedCustomEvent<Type, Detail>], void>;
+    > = Fn<[event: TypedCustomEvent<Type, Detail>], void>;
 
 export type CustomEventCallbackOn<
     Type extends string = string,
     Detail = unknown,
-> = Fn<[event: TypedCustomEvent<Type, Detail>["detail"]], void>;
+    > = Fn<[event: TypedCustomEvent<Type, Detail>["detail"]], void>;
 
 export type EventCallbackFromCustomEvent<
     T extends TypedCustomEvent<string, unknown>,
-> = Fn<[event: T], void>;
+    > = Fn<[event: T], void>;
 
 export type CustomEventMap = Record<string, unknown>;
 
@@ -35,12 +33,12 @@ export type EventTargetCompatible = Extract<
 type CustomEventDetailParameter<
     T extends Record<string, unknown>,
     K extends keyof T,
-> = (
-    unknown extends T[K] ? [detail?: unknown]
+    > = (
+        unknown extends T[K] ? [detail?: unknown]
         : undefined extends T[K] ? [detail?: T[K]]
         : T[K] extends never ? []
         : [detail: T[K]]
-);
+    );
 
 export class EventEmitter<T extends CustomEventMap = Record<never, never>>
     extends EventTarget {
@@ -145,13 +143,6 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
         return this;
     }
 
-    /**
-     * remove a callback for an or multiple events or remove all callbacks for an or multiple events or even reomve all callbacks
-     * @param type the optional typed event name(s)
-     * @param callback the optional typed callback function to remove
-     * @param options the optional options
-     * @returns this
-     */
     // @ts-expect-error <different implementation>
     removeEventListener<K extends keyof T & string>(
         type: K,
@@ -167,6 +158,13 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
         return this;
     }
 
+    /**
+     * remove a callback for an or multiple events or remove all callbacks for an or multiple events or even reomve all callbacks
+     * @param type the optional typed event name(s)
+     * @param callback the optional typed callback function to remove
+     * @param options the optional options
+     * @returns this
+     */
     off<K extends keyof T & string>(
         types?: K | K[],
         callback?: CustomEventCallbackOn<K, T[K]>,
@@ -236,27 +234,56 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
         const event = EventEmitter.createEvent(
             type,
             detail,
-        ) as TypedCustomEvent<K, T[K]>;
+        );
 
         this.dispatchEvent(event);
     }
 
     /**
      * Emit an event with given detail
-     * Calls all listeners that liten to the emitted event
+     * Calls all listeners that listen to the emitted event and waits for them to return
+     * @param type name of the event
+     * @param param1 the detail that should be applied to the event
+     * @returns a Promise that resolves with this
+     */
+    async emit<K extends keyof T & string>(
+        type: K,
+        ...[detail]: CustomEventDetailParameter<T, K>
+    ): Promise<this> {
+        const listeners = this
+            .getOrCreateListeners(type);
+
+        for (const listener of listeners) {
+            try {
+                await listener(detail);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        return this;
+    }
+
+    /**
+     * The same as emit but without waiting for each listener to return
      * @param type name of the event
      * @param param1 the detail that should be applied to the event
      * @returns this
      */
-    emit<K extends keyof T & string>(
+    emitSync<K extends keyof T & string>(
         type: K,
         ...[detail]: CustomEventDetailParameter<T, K>
     ): this {
-        this
-            .getOrCreateListeners(type)
-            .forEach((listener) => {
+        const listeners = this
+            .getOrCreateListeners(type);
+
+        for (const listener of listeners) {
+            try {
                 listener(detail);
-            });
+            } catch (error) {
+                console.error(error);
+            }
+        }
 
         return this;
     }
