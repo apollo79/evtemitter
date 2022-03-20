@@ -40,6 +40,12 @@ type CustomEventDetailParameter<
         : [detail: T[K]]
     );
 
+type CustomEventListenerMap<Type extends string = string, Detail = unknown> = Map<
+    | CustomEventCallbackOn<Type, Detail>
+    | CustomEventCallbackAddEventListener<Type, Detail>,
+    CustomEventCallbackAddEventListener<Type, Detail>
+>;
+
 export class EventEmitter<T extends CustomEventMap = Record<never, never>>
     extends EventTarget {
     /**
@@ -47,7 +53,8 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
      */
     protected __listeners__: Map<
         string,
-        Set<CustomEventCallbackOn>
+        // deno-lint-ignore no-explicit-any
+        CustomEventListenerMap<string, any>
     > = new Map();
 
     static createEvent<Type extends string, Detail>(
@@ -73,9 +80,9 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
     protected getOrCreateListeners<K extends keyof T & string>(
         type: K,
         // deno-lint-ignore no-explicit-any
-    ): Set<CustomEventCallbackOn<string, any>> {
+    ): CustomEventListenerMap<K, any> {
         if (!this.__listeners__.has(type)) {
-            this.__listeners__.set(type, new Set());
+            this.__listeners__.set(type, new Map());
         }
 
         return this.__listeners__.get(type)!;
@@ -106,15 +113,21 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
         types: K | K[],
         callback: CustomEventCallbackOn<K, T[K]>,
     ) {
-        if (typeof types === "string") {
+        const detailOnly = EventEmitter.detailPasser(callback);
+
+        const addCallback = (type: K) => {
+            this.addEventListener(type, detailOnly);
+
             this
-                .getOrCreateListeners(types)
-                .add(callback);
+                .getOrCreateListeners(type)
+                .set(callback, detailOnly);
+        }
+
+        if (typeof types === "string") {
+            addCallback(types);
         } else {
             types.forEach((type) => {
-                this
-                    .getOrCreateListeners(type)
-                    .add(callback);
+                addCallback(type);
             });
         }
 
@@ -146,14 +159,18 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
     // @ts-expect-error <different implementation>
     removeEventListener<K extends keyof T & string>(
         type: K,
-        callback: CustomEventCallbackAddEventListener<K, T[K]>,
+        callback: CustomEventCallbackAddEventListener<K, T[K]> | CustomEventCallbackOn<K, T[K]>,
         options?: Parameters<EventTarget["removeEventListener"]>[2],
     ): this {
-        super.removeEventListener(
-            type,
-            callback as EventTargetCompatible,
-            options,
-        );
+        const realCb = this.__listeners__.get(type)?.get(callback);
+
+        if (realCb) {
+            super.removeEventListener(type, this.__listeners__.get(type)!.get(callback)! as EventTargetCompatible, options);
+
+            this
+                .getOrCreateListeners(type)
+                .delete(callback);
+        }
 
         return this;
     }
@@ -167,28 +184,28 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
      */
     off<K extends keyof T & string>(
         types?: K | K[],
-        callback?: CustomEventCallbackOn<K, T[K]>,
+        callback?: CustomEventCallbackOn<K, T[K]> | CustomEventCallbackAddEventListener<K, T[K]>,
     ) {
         const doRemove = (
             type: K,
-            optionalCallback?: CustomEventCallbackOn<K, T[K]>,
+            optionalCallback?: CustomEventCallbackAddEventListener<K, T[K]>,
         ) => {
-            const cb = optionalCallback ?? callback!;
+            const cb = optionalCallback ?? callback;
 
-            this
-                .getOrCreateListeners(type)
-                .delete(cb);
+            if (cb) {
+                this.removeEventListener(type, cb);
+            }
         };
 
         // remove all EventListeners
         if (!types && !callback) {
-            this.__listeners__.forEach((set, type) => {
-                set.forEach((callback) => {
+            this.__listeners__.forEach((map, type) => {
+                map.forEach((_value, callback) => {
                     doRemove(type as K, callback);
                 });
             });
 
-            this.__listeners__ = new Map();
+            this.__listeners__.clear();
         } // remove all EventListeners for specific event(s)
         else if (types && !callback) {
             if (typeof types === "string") {
@@ -227,63 +244,25 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
         return super.dispatchEvent(type);
     }
 
-    dispatch<K extends keyof T & string>(
+    dispatch = this.emit;
+
+    /**
+     * Emit an event with given detail
+     * Calls all listeners that listen to the emitted event
+     * @param type name of the event
+     * @param param1 the detail that should be applied to the event
+     * @returns a Promise that resolves with this
+     */
+    emit<K extends keyof T & string>(
         type: K,
         ...[detail]: CustomEventDetailParameter<T, K>
-    ) {
+    ): this {
         const event = EventEmitter.createEvent(
             type,
             detail,
         );
 
         this.dispatchEvent(event);
-    }
-
-    /**
-     * Emit an event with given detail
-     * Calls all listeners that listen to the emitted event and waits for them to return
-     * @param type name of the event
-     * @param param1 the detail that should be applied to the event
-     * @returns a Promise that resolves with this
-     */
-    async emit<K extends keyof T & string>(
-        type: K,
-        ...[detail]: CustomEventDetailParameter<T, K>
-    ): Promise<this> {
-        const listeners = this
-            .getOrCreateListeners(type);
-
-        for (const listener of listeners) {
-            try {
-                await listener(detail);
-            } catch (error) {
-                console.error(error);
-            }
-        }
-
-        return this;
-    }
-
-    /**
-     * The same as emit but without waiting for each listener to return
-     * @param type name of the event
-     * @param param1 the detail that should be applied to the event
-     * @returns this
-     */
-    emitSync<K extends keyof T & string>(
-        type: K,
-        ...[detail]: CustomEventDetailParameter<T, K>
-    ): this {
-        const listeners = this
-            .getOrCreateListeners(type);
-
-        for (const listener of listeners) {
-            try {
-                listener(detail);
-            } catch (error) {
-                console.error(error);
-            }
-        }
 
         return this;
     }
