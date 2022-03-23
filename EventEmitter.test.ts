@@ -17,20 +17,26 @@ type Events = Record<string, unknown> & {
 Deno.test("types of detail", () => {
     const emitter = new EventEmitter<Events>();
 
-    emitter.on("ping", (event) => {
-        assertEquals(event.detail, undefined);
+    emitter.on("ping", (detail) => {
+        console.log("ping: ", detail);
+
+        assertEquals(detail, undefined);
     });
 
     emitter.emit("ping");
 
-    emitter.on("pong", (event) => {
-        assertEquals(event.detail, "hello");
+    emitter.on("pong", (detail) => {
+        console.log("pong: ", detail);
+
+        assertEquals(detail, "hello");
     });
 
     emitter.emit("pong", "hello");
 
-    emitter.on("peng", (event) => {
-        assertEquals(event.detail.data, "peng emitted!");
+    emitter.on("peng", (detail) => {
+        console.log("peng: ", detail);
+
+        assertEquals(detail.data, "peng emitted!");
     });
 
     emitter.emit("peng", {
@@ -45,8 +51,8 @@ Deno.test("types of detail", () => {
 Deno.test("on", () => {
     const ee = new EventEmitter<Events>();
 
-    ee.on("foo", (event) => {
-        assertEquals(event.detail, "bar");
+    ee.on("foo", (detail) => {
+        assertEquals(detail, "bar");
     });
 
     ee.emit("foo", "bar");
@@ -55,8 +61,8 @@ Deno.test("on", () => {
 Deno.test("once", () => {
     const ee = new EventEmitter<Events>();
 
-    ee.once("pong", (event) => {
-        assertEquals(event.detail, "bar");
+    ee.once("pong", (detail) => {
+        assertEquals(detail, "bar");
     });
 
     ee.emit("pong", "bar");
@@ -131,8 +137,8 @@ Deno.test("extend", () => {
 
     const ext = new Extending();
 
-    ext.on("pong", (event) => {
-        assertEquals(event.detail, "pong");
+    ext.on("pong", (detail) => {
+        assertEquals(detail, "pong");
     });
 
     ext.foo();
@@ -149,8 +155,8 @@ Deno.test("extend with custom events", () => {
 
     const ext = new Extending();
 
-    ext.on("pong", (event) => {
-        assertEquals(event.detail, "pong");
+    ext.on("pong", (detail) => {
+        assertEquals(detail, "pong");
     });
 
     ext.foo();
@@ -178,6 +184,52 @@ Deno.test("pub / sub", () => {
     });
 
     cleanup2();
+});
+
+Deno.test("getListeners", () => {
+    const ee = new EventEmitter<Events>();
+
+    const cb1 = () => {};
+
+    const cb2 = () => {};
+
+    ee.on("pong", cb1);
+
+    ee.addEventListener("pong", cb2);
+
+    ee.addEventListener("ping", () => {});
+
+    let listeners = ee.getListeners();
+
+    assertEquals(listeners.size, 2);
+
+    assertEquals(listeners.get("pong")!.size, 2);
+
+    assertEquals(listeners.get("ping")!.size, 1);
+
+    ee.off("ping");
+
+    listeners = ee.getListeners();
+
+    assertEquals(listeners.size, 1);
+
+    assertEquals(listeners.get("pong")!.size, 2);
+
+    assertEquals(listeners.get("ping"), undefined);
+
+    ee.off("pong", cb1);
+
+    listeners = ee.getListeners();
+
+    assertEquals(listeners.get("pong")!.size, 1);
+
+    ee.off();
+
+    listeners = ee.getListeners();
+
+    console.log(listeners);
+
+    assertEquals(listeners.size, 0);
 });
 
 // https://github.com/jsejcksn/deno-utils/blob/main/event.test.ts
@@ -254,6 +306,7 @@ Deno.test("EventEmitter", async (ctx) => {
 
     await ctx.step('"subscribe" method returns "unsubscribe" function', () => {
         const target = new EventEmitter<CountMap>();
+
         let count = 0;
 
         const unsubscribe = target.subscribe("adjustCount", (payload) => {
