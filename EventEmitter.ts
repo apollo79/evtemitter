@@ -207,7 +207,7 @@ export class EventEmitter<T extends CustomEventMap = Record<never, never>>
 
         this.on(
             // @ts-expect-error <crazy, there are two overloads, but it is not ok for typescript>
-            types, // 🤔
+            types,
             callback,
             Object.assign(
                 options,

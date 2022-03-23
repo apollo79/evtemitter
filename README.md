@@ -1,7 +1,8 @@
 # evtemitter
 
 [![Deno](https://github.com/apollo79/evtemitter/actions/workflows/deno.yml/badge.svg)](https://github.com/apollo79/evtemitter/actions/workflows/deno.yml)\
-[![Deploy](https://github.com/apollo79/evtemitter/actions/workflows/deploy.yml/badge.svg)](https://github.com/apollo79/evtemitter/actions/workflows/deploy.yml)
+[![Deploy](https://github.com/apollo79/evtemitter/actions/workflows/deploy.yml/badge.svg)](https://github.com/apollo79/evtemitter/actions/workflows/deploy.yml)\
+![Code Coverage](https://img.shields.io/static/v1?label=coverage&message=85.185%&color=yellowgreen)
 
 A typed Eventemitter for deno.
 
