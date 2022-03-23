@@ -17,22 +17,22 @@ import type { TypedCustomEvent } from "https://deno.land/x/evtemitter@1.0.0/mod.
 const emitter = new EventEmitter<Events>();
 
 emitter.on("ping", (event) => {
-  assertEquals(event.detail, undefined);
+    assertEquals(event.detail, undefined);
 });
 
 emitter.emit("ping");
 
 emitter.on("pong", (event) => {
-  assertEquals(event.detail, "hello");
+    assertEquals(event.detail, "hello");
 });
 
 emitter.emit("pong", "hello");
 
 emitter.on("peng", (event) => {
-  assertEquals(event.detail.data, "peng emitted!");
+    assertEquals(event.detail.data, "peng emitted!");
 });
 
 emitter.emit("peng", {
-  data: "peng emitted!",
+    data: "peng emitted!",
 });
 ```
