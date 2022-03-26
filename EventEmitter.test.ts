@@ -14,33 +14,45 @@ type Events = Record<string, unknown> & {
     peng: { data: string };
 };
 
-Deno.test("types of detail", () => {
-    const emitter = new EventEmitter<Events>();
+Deno.test("types of detail", async (ctx) => {
+    await ctx.step("typed", () => {
+        const emitter = new EventEmitter<Events>();
 
-    emitter.on("ping", (detail) => {
-        console.log("ping: ", detail);
+        emitter.on("ping", (detail) => {
+            console.log("ping: ", detail);
 
-        assertEquals(detail, undefined);
+            assertEquals(detail, undefined);
+        });
+
+        emitter.emit("ping");
+
+        emitter.on("pong", (detail) => {
+            console.log("pong: ", detail);
+
+            assertEquals(detail, "hello");
+        });
+
+        emitter.emit("pong", "hello");
+
+        emitter.on("peng", (detail) => {
+            console.log("peng: ", detail);
+
+            assertEquals(detail.data, "peng emitted!");
+        });
+
+        emitter.emit("peng", {
+            data: "peng emitted!",
+        });
     });
 
-    emitter.emit("ping");
+    await ctx.step("untyped", () => {
+        const emitter = new EventEmitter();
 
-    emitter.on("pong", (detail) => {
-        console.log("pong: ", detail);
+        emitter.on("hello", (detail) => {
+            assertEquals(detail, "hello");
+        });
 
-        assertEquals(detail, "hello");
-    });
-
-    emitter.emit("pong", "hello");
-
-    emitter.on("peng", (detail) => {
-        console.log("peng: ", detail);
-
-        assertEquals(detail.data, "peng emitted!");
-    });
-
-    emitter.emit("peng", {
-        data: "peng emitted!",
+        emitter.emit("hello", "hello");
     });
 });
 

@@ -47,7 +47,8 @@ type CustomEventListenerMap<Type extends string = string, Detail = unknown> =
         CustomEventCallbackAddEventListener<Type, Detail>
     >;
 
-export class EventEmitter<T extends CustomEventMap = Record<string, unknown>>
+// deno-lint-ignore no-explicit-any
+export class EventEmitter<T extends CustomEventMap = Record<string, any>>
     extends EventTarget {
     /**
      * @var __listeners__ A Map with all listeners, sorted by event
