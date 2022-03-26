@@ -47,7 +47,7 @@ type CustomEventListenerMap<Type extends string = string, Detail = unknown> =
         CustomEventCallbackAddEventListener<Type, Detail>
     >;
 
-export class EventEmitter<T extends CustomEventMap = Record<never, never>>
+export class EventEmitter<T extends CustomEventMap = Record<string, unknown>>
     extends EventTarget {
     /**
      * @var __listeners__ A Map with all listeners, sorted by event
