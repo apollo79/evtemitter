@@ -19,24 +19,18 @@ Deno.test("types of detail", async (ctx) => {
         const emitter = new EventEmitter<Events>();
 
         emitter.on("ping", (detail) => {
-            console.log("ping: ", detail);
-
             assertEquals(detail, undefined);
         });
 
         emitter.emit("ping");
 
         emitter.on("pong", (detail) => {
-            console.log("pong: ", detail);
-
             assertEquals(detail, "hello");
         });
 
         emitter.emit("pong", "hello");
 
         emitter.on("peng", (detail) => {
-            console.log("peng: ", detail);
-
             assertEquals(detail.data, "peng emitted!");
         });
 
@@ -198,52 +192,6 @@ Deno.test("pub / sub", () => {
     cleanup2();
 });
 
-Deno.test("getListeners", () => {
-    const ee = new EventEmitter<Events>();
-
-    const cb1 = () => {};
-
-    const cb2 = () => {};
-
-    ee.on("pong", cb1);
-
-    ee.addEventListener("pong", cb2);
-
-    ee.addEventListener("ping", () => {});
-
-    let listeners = ee.getListeners();
-
-    assertEquals(listeners.size, 2);
-
-    assertEquals(listeners.get("pong")!.size, 2);
-
-    assertEquals(listeners.get("ping")!.size, 1);
-
-    ee.off("ping");
-
-    listeners = ee.getListeners();
-
-    assertEquals(listeners.size, 1);
-
-    assertEquals(listeners.get("pong")!.size, 2);
-
-    assertEquals(listeners.get("ping"), undefined);
-
-    ee.off("pong", cb1);
-
-    listeners = ee.getListeners();
-
-    assertEquals(listeners.get("pong")!.size, 1);
-
-    ee.off();
-
-    listeners = ee.getListeners();
-
-    console.log(listeners);
-
-    assertEquals(listeners.size, 0);
-});
-
 // https://github.com/jsejcksn/deno-utils/blob/main/event.test.ts
 
 Deno.test("EventEmitter.createEvent", async (ctx) => {
@@ -322,6 +270,8 @@ Deno.test("EventEmitter", async (ctx) => {
         let count = 0;
 
         const unsubscribe = target.subscribe("adjustCount", (payload) => {
+            console.log("called");
+
             count += payload === "increment" ? 1 : -1;
 
             unsubscribe();

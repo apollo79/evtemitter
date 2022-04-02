@@ -5,7 +5,7 @@
         }
     },
     "tasks": {
-        "test": "deno test --coverage=cov_profile",
+        "test": "deno test",
         "coverage": "deno coverage cov_profile",
         "test:coverage": "deno task test && deno task coverage",
         "test:cov": "deno task test:coverage"
