@@ -5,8 +5,6 @@
     "deno.config": "../deno.jsonc",
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "denoland.vscode-deno",
-    "deno.codeLens.references": true,
-    "deno.codeLens.implementations": true,
     "deno.codeLens.test": true,
     "emeraldwalk.runonsave": {
         "commands": [

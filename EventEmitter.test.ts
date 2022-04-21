@@ -7,23 +7,24 @@ import {
 } from "https://deno.land/std@0.127.0/testing/asserts.ts";
 
 import { CustomEventMap, EventEmitter } from "./EventEmitter.ts";
-import StrictEventEmitter, {
-    CustomEmitEventsMap,
-    CustomListenEventsMap,
-} from "./StrictEventEmitter.ts";
+// import StrictEventEmitter, {
+//     CustomEmitEventsMap,
+//     CustomListenEventsMap,
+// } from "./StrictEventEmitter.ts";
 
-type Events = Record<string, unknown> & {
-    ping: undefined;
-    pong: string;
-    peng: { data: string };
+type Events = CustomEventMap & {
+    ping: [];
+    pong: [string];
+    peng: [{ data: string }];
+    pung: [number, string, boolean];
 };
 
 Deno.test("types of detail", async (ctx) => {
     await ctx.step("typed", () => {
         const emitter = new EventEmitter<Events>();
 
-        emitter.on("ping", (detail) => {
-            assertEquals(detail, undefined);
+        emitter.on("ping", () => {
+            // assertEquals(detail, undefined);
         });
 
         emitter.emit("ping");
@@ -41,6 +42,14 @@ Deno.test("types of detail", async (ctx) => {
         emitter.emit("peng", {
             data: "peng emitted!",
         });
+
+        emitter.on("pung", (number, string, boolean) => {
+            assertEquals(number, 1);
+            assertEquals(string, "hello");
+            assertEquals(boolean, true);
+        });
+
+        emitter.emit("pung", 1, "hello", true);
     });
 
     await ctx.step("untyped", () => {
@@ -205,40 +214,20 @@ Deno.test("pub / sub", () => {
 
 // https://github.com/jsejcksn/deno-utils/blob/main/event.test.ts
 
-Deno.test("EventEmitter.createEvent", async (ctx) => {
-    await ctx.step("created event has correct property values", () => {
-        const eventType = "name";
-        const eventDetail = { string: "", number: NaN };
-        const ev = EventEmitter.createEvent(eventType, eventDetail);
-
-        // type-checking
-        ev.type === eventType;
-        ev.detail === eventDetail;
-
-        assertStrictEquals(ev.type, eventType);
-        assertStrictEquals(ev.detail, eventDetail);
-    });
-});
-
 Deno.test("EventEmitter", async (ctx) => {
-    type CountMap = { adjustCount: "increment" | "decrement" };
+    type CountMap = { adjustCount: ["increment" | "decrement"] };
 
-    await ctx.step("dispatches events", () => {
+    await ctx.step("emits / dispatches events", () => {
         const target = new EventEmitter<CountMap>();
         let count = 0;
 
-        target.addEventListener("adjustCount", ({ detail }) => {
+        target.on("adjustCount", (detail) => {
             count += detail === "increment" ? 1 : -1;
         });
 
-        const incrementEvent = EventEmitter.createEvent(
-            "adjustCount",
-            "increment" as const,
-        );
+        target.emit("adjustCount", "increment");
 
-        target.dispatchEvent(incrementEvent);
-
-        target.dispatchEvent(incrementEvent);
+        target.emit("adjustCount", "increment");
 
         target.dispatch("adjustCount", "decrement");
 
@@ -249,28 +238,23 @@ Deno.test("EventEmitter", async (ctx) => {
         assertStrictEquals(count, 1);
     });
 
-    await ctx.step('correctly implements "once" option', () => {
+    await ctx.step('correctly implements "once" method', () => {
         const target = new EventEmitter<CountMap>();
         let count = 0;
 
-        const cb = (ev: CustomEvent<CountMap["adjustCount"]>) => {
-            count += ev.detail === "increment" ? 1 : -1;
+        const cb = (detail: "increment" | "decrement") => {
+            count += detail === "increment" ? 1 : -1;
         };
 
-        target.addEventListener("adjustCount", cb, { once: true });
-
-        const incrementEvent = EventEmitter.createEvent(
-            "adjustCount",
-            "increment" as const,
-        );
+        target.once("adjustCount", cb);
 
         assertStrictEquals(count, 0);
 
-        target.dispatchEvent(incrementEvent);
+        target.emit("adjustCount", "increment");
 
         assertStrictEquals(count, 1);
 
-        target.dispatchEvent(incrementEvent);
+        target.emit("adjustCount", "increment");
 
         assertStrictEquals(count, 1);
     });
@@ -281,7 +265,7 @@ Deno.test("EventEmitter", async (ctx) => {
         let count = 0;
 
         const unsubscribe = target.subscribe("adjustCount", (payload) => {
-            console.log("called");
+            console.log("called with: ", payload);
 
             count += payload === "increment" ? 1 : -1;
 

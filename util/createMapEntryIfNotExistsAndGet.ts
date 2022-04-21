@@ -1,6 +1,6 @@
-export const createMapEntryIfNotExistsAndGet = <T = unknown>(
-    map: Map<string, T>,
-    name: string,
+export const createMapEntryIfNotExistsAndGet = <K = unknown, T = unknown>(
+    map: Map<K, T>,
+    name: K,
     value: T,
 ) => {
     if (map.has(name)) {
