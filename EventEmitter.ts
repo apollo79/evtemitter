@@ -34,7 +34,7 @@ export type EventTargetCompatible = Extract<
     Fn
 >;
 
-type CustomEventDetailParameter<
+export type CustomEventDetailParameter<
     T extends Record<string, unknown>,
     K extends keyof T,
 > = (
