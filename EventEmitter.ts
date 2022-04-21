@@ -19,7 +19,7 @@ export type CustomEventCallbackOn<
 >;
 
 export type CustomEventMap = Record<
-    string,
+    string | number | symbol,
     unknown[]
 >;
 
@@ -246,6 +246,7 @@ export class EventEmitter<
 
     /**
      * Alias for emit
+     * @method
      */
     dispatch = this.emit;
 
@@ -303,6 +304,7 @@ export class EventEmitter<
 
     /**
      * same as emit. Used for pub / sub conventions
+     * @method
      */
     publish = this.emit;
 
@@ -323,6 +325,66 @@ export class EventEmitter<
             this.off(type, callback);
         };
     }
+
+    /**
+     * Get all EventListeners for a specific Event
+     * @param type the event name
+     */
+    getListeners<K extends keyof T & string>(
+        type: K,
+    ): Set<CustomEventCallbackOn>;
+
+    /**
+     * Get all EventListeners
+     */
+    getListeners(): Map<
+        string,
+        Set<CustomEventCallbackOn>
+    >;
+
+    getListeners<K extends keyof T & string>(
+        type?: K,
+    ):
+        | Set<CustomEventCallbackOn<unknown[]>>
+        | Map<string | number | symbol, Set<CustomEventCallbackOn<unknown[]>>> {
+        const getListenersOfType = (type: string | number | symbol) => {
+            const listeners = new Set<CustomEventCallbackOn>();
+
+            const listenersSet = this.__listeners__.get(type);
+
+            if (listenersSet) {
+                for (const listener of listenersSet.values()) {
+                    listeners.add(listener);
+                }
+            }
+
+            return listeners;
+        };
+
+        if (!type) {
+            const listeners = new Map<
+                string | number | symbol,
+                Set<CustomEventCallbackOn>
+            >();
+
+            const entries = this.__listeners__.entries();
+
+            // console.log(entries, this.__listeners__);
+
+            for (const [type] of entries) {
+                listeners.set(type, getListenersOfType(type));
+            }
+
+            return listeners;
+        }
+
+        return getListenersOfType(type);
+    }
+
+    /**
+     * @method
+     */
+    listeners = this.getListeners;
 }
 
 export default EventEmitter;
