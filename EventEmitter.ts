@@ -5,9 +5,10 @@ export type Fn<
     Result = unknown,
 > = (...params: Params) => Result;
 
-export type TypedCustomEvent<Type extends string, Detail = unknown> =
-    & CustomEvent<Detail>
-    & { type: Type };
+export type TypedCustomEvent<
+    Type extends string,
+    Detail = unknown,
+> = CustomEvent<Detail> & { type: Type };
 
 export type CustomEventCallbackAddEventListener<
     Type extends string = string,
@@ -33,23 +34,24 @@ export type EventTargetCompatible = Extract<
 type CustomEventDetailParameter<
     T extends Record<string, unknown>,
     K extends keyof T,
-> = (
-    unknown extends T[K] ? [detail?: unknown]
-        : undefined extends T[K] ? [detail?: T[K]]
-        : T[K] extends never ? []
-        : [detail: T[K]]
-);
+> = unknown extends T[K] ? [detail?: unknown]
+    : undefined extends T[K] ? [detail?: T[K]]
+    : T[K] extends never ? []
+    : [detail: T[K]];
 
-type CustomEventListenerMap<Type extends string = string, Detail = unknown> =
-    Map<
-        | CustomEventCallbackOn<Type, Detail>
-        | CustomEventCallbackAddEventListener<Type, Detail>,
-        CustomEventCallbackAddEventListener<Type, Detail>
-    >;
+type CustomEventListenerMap<
+    Type extends string = string,
+    Detail = unknown,
+> = Map<
+    | CustomEventCallbackOn<Type, Detail>
+    | CustomEventCallbackAddEventListener<Type, Detail>,
+    CustomEventCallbackAddEventListener<Type, Detail>
+>;
 
 // deno-lint-ignore no-explicit-any
-export class EventEmitter<T extends CustomEventMap = Record<string, any>>
-    extends EventTarget {
+export class EventEmitter<
+    T extends CustomEventMap = Record<string, any>,
+> extends EventTarget {
     /**
      * @var __listeners__ A Map with all listeners, sorted by event
      */
@@ -108,9 +110,7 @@ export class EventEmitter<T extends CustomEventMap = Record<string, any>>
             options,
         );
 
-        this
-            .getOrCreateListeners(type)
-            .set(callback, callback);
+        this.getOrCreateListeners(type).set(callback, callback);
 
         return this;
     }
@@ -153,9 +153,7 @@ export class EventEmitter<T extends CustomEventMap = Record<string, any>>
                 options,
             );
 
-            this
-                .getOrCreateListeners(type)
-                .set(callback, detailOnly);
+            this.getOrCreateListeners(type).set(callback, detailOnly);
         };
 
         if (typeof types === "string") {
@@ -210,12 +208,9 @@ export class EventEmitter<T extends CustomEventMap = Record<string, any>>
             // @ts-expect-error <crazy, there are two overloads, but it is not ok for typescript>
             types,
             callback,
-            Object.assign(
-                options,
-                {
-                    once: true,
-                },
-            ),
+            Object.assign(options, {
+                once: true,
+            }),
         );
 
         return this;
@@ -240,9 +235,7 @@ export class EventEmitter<T extends CustomEventMap = Record<string, any>>
                 options,
             );
 
-            this
-                .getOrCreateListeners(type)
-                .delete(callback);
+            this.getOrCreateListeners(type).delete(callback);
         }
 
         return this;
@@ -257,17 +250,13 @@ export class EventEmitter<T extends CustomEventMap = Record<string, any>>
      * remove all EventListeners for a specific event
      * @param type the name of the event all listeners should be removed
      */
-    off<K extends keyof T & string>(
-        type: K,
-    ): this;
+    off<K extends keyof T & string>(type: K): this;
 
     /**
      * remove all EventListeners for multiple specific events
      * @param types an array of events for who all listeners should be removed
      */
-    off<K extends keyof T & string>(
-        types: K[],
-    ): this;
+    off<K extends keyof T & string>(types: K[]): this;
 
     /**
      * remove a specific EventListener for a specific event
@@ -381,10 +370,7 @@ export class EventEmitter<T extends CustomEventMap = Record<string, any>>
         type: K,
         ...[detail]: CustomEventDetailParameter<T, K>
     ): this {
-        const event = EventEmitter.createEvent(
-            type,
-            detail,
-        );
+        const event = EventEmitter.createEvent(type, detail);
 
         this.dispatchEvent(event);
 
