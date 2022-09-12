@@ -1,37 +1,55 @@
+// import type { CustomEventMap, TypedCustomEvent } from "./EventEmitter.ts";
 import {
+    assertEquals,
     assertStrictEquals,
+    // assertThrows,
     fail,
 } from "https://deno.land/std@0.127.0/testing/asserts.ts";
-import EventEmitter from "./EventEmitter.ts";
 
-type Events = {
-    foo: "bar";
-    bar: "bar";
-    baz: undefined;
-    pong: "bar";
+import { UntypedEventEmitter } from "./UntypedEventEmitter.ts";
+
+type Events = Record<string, unknown> & {
+    ping: undefined;
+    pong: string;
+    peng: { data: string };
 };
 
-Deno.test("ReservedEventEmitter base functions", async (ctx) => {
+Deno.test("EventEmitter.createEvent", async (ctx) => {
+    await ctx.step("created event has correct property values", () => {
+        const eventType = "name";
+        const eventDetail = { string: "", number: NaN };
+        const ev = UntypedEventEmitter.createEvent(eventType, eventDetail);
+
+        // type-checking
+        ev.type === eventType;
+        ev.detail === eventDetail;
+
+        assertStrictEquals(ev.type, eventType);
+        assertStrictEquals(ev.detail, eventDetail);
+    });
+});
+
+Deno.test("EventEmitter", async (ctx) => {
     /**
      * @see https://deno.land/x/event@2.0.0/test.ts
      */
 
     await ctx.step("on", async (ctx) => {
         await ctx.step("one event", () => {
-            const ee = new EventEmitter<Events>();
+            const ee = new UntypedEventEmitter();
 
             ee.on("foo", (detail) => {
-                assertStrictEquals(detail, "bar");
+                assertEquals(detail, "bar");
             });
 
             ee.emit("foo", "bar");
         });
 
         await ctx.step("multiple events", () => {
-            const ee = new EventEmitter<Events>();
+            const ee = new UntypedEventEmitter();
 
             ee.on(["foo", "bar"], (detail) => {
-                assertStrictEquals(detail, "bar");
+                assertEquals(detail, "bar");
             });
 
             ee.emit("foo", "bar");
@@ -41,18 +59,18 @@ Deno.test("ReservedEventEmitter base functions", async (ctx) => {
     });
 
     await ctx.step("once", () => {
-        const ee = new EventEmitter<Events>();
+        const ee = new UntypedEventEmitter();
 
-        ee.once("pong", (detail) => {
-            assertStrictEquals(detail, "bar");
+        ee.once("foo", (detail) => {
+            assertEquals(detail, "bar");
         });
 
-        ee.emit("pong", "bar");
+        ee.emit("foo", "bar");
     });
 
     await ctx.step("off", async (ctx) => {
         await ctx.step("exact off", () => {
-            const ee = new EventEmitter<Events>();
+            const ee = new UntypedEventEmitter();
 
             function foo() {
                 fail();
@@ -68,7 +86,7 @@ Deno.test("ReservedEventEmitter base functions", async (ctx) => {
         });
 
         await ctx.step("offEvent", () => {
-            const ee = new EventEmitter<Events>();
+            const ee = new UntypedEventEmitter();
 
             let i = 0;
 
@@ -80,17 +98,17 @@ Deno.test("ReservedEventEmitter base functions", async (ctx) => {
 
             ee.off("foo");
 
-            ee.emit("foo", "bar");
+            ee.emit("foo");
 
             assertStrictEquals(i, 0);
 
-            ee.emit("bar", "bar");
+            ee.emit("bar");
 
             assertStrictEquals(i, 1);
         });
 
         await ctx.step("offAll", () => {
-            const ee = new EventEmitter<Events>();
+            const ee = new UntypedEventEmitter();
 
             let i = 0;
 
@@ -100,14 +118,14 @@ Deno.test("ReservedEventEmitter base functions", async (ctx) => {
 
             ee.off();
 
-            ee.emit("foo", "bar").emit("bar", "bar");
+            ee.emit("foo").emit("bar");
 
-            assertStrictEquals(i, 0);
+            assertEquals(i, 0);
         });
     });
 
     await ctx.step("chainable", () => {
-        const ee = new EventEmitter<Events>();
+        const ee = new UntypedEventEmitter();
 
         function foo() {
             fail();
@@ -132,14 +150,14 @@ Deno.test("ReservedEventEmitter base functions", async (ctx) => {
     });
 
     await ctx.step("dispatches events", () => {
-        const target = new EventEmitter<Events>();
+        const target = new UntypedEventEmitter();
         let count = 0;
 
         target.addEventListener("adjustCount", ({ detail }) => {
             count += detail === "increment" ? 1 : -1;
         });
 
-        const incrementEvent = EventEmitter<Events>.createEvent(
+        const incrementEvent = UntypedEventEmitter.createEvent(
             "adjustCount",
             "increment" as const,
         );
@@ -158,7 +176,7 @@ Deno.test("ReservedEventEmitter base functions", async (ctx) => {
     });
 
     await ctx.step('correctly implements "once" option', () => {
-        const target = new EventEmitter<Events>();
+        const target = new UntypedEventEmitter();
         let count = 0;
 
         const cb = (ev: CustomEvent) => {
@@ -167,7 +185,7 @@ Deno.test("ReservedEventEmitter base functions", async (ctx) => {
 
         target.addEventListener("adjustCount", cb, { once: true });
 
-        const incrementEvent = EventEmitter<Events>.createEvent(
+        const incrementEvent = UntypedEventEmitter.createEvent(
             "adjustCount",
             "increment" as const,
         );
@@ -186,7 +204,7 @@ Deno.test("ReservedEventEmitter base functions", async (ctx) => {
     });
 
     await ctx.step('"subscribe" method returns "unsubscribe" function', () => {
-        const target = new EventEmitter<Events>();
+        const target = new UntypedEventEmitter();
 
         let count = 0;
 
