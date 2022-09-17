@@ -1,116 +1,183 @@
-// https://stackoverflow.com/questions/71224221/class-extending-eventemitter-with-type-parameter#comment125936600_71224221
+import type {
+    CustomEventDetailParameter,
+    CustomEventListenerMap,
+    CustomEventMap,
+    EventNames,
+    EventTargetCompatible,
+    EvName,
+    Fn,
+    ReservedOrUserEventNames,
+    ReservedOrUserListenerAddEventListener,
+    ReservedOrUserListenerAddEventListenerParams,
+    ReservedOrUserListenerOn,
+    ReservedOrUserListenerOnOrAddEventListener,
+    ReservedOrUserListenerOnParams,
+    TypedCustomEvent,
+    TypedEventBroadcaster,
+} from "./types.ts";
 
-export type Fn<
-    Params extends readonly unknown[] = readonly unknown[],
-    Result = unknown,
-> = (...params: Params) => Result;
-
-export type TypedCustomEvent<
-    Type extends string,
-    Detail = unknown,
-> = CustomEvent<Detail> & { type: Type };
-
-export type CustomEventCallbackAddEventListener<
-    Type extends string = string,
-    Detail = unknown,
-> = Fn<[event: TypedCustomEvent<Type, Detail>], void>;
-
-export type CustomEventCallbackOn<
-    Type extends string = string,
-    Detail = unknown,
-> = Fn<[event: TypedCustomEvent<Type, Detail>["detail"]], void>;
-
-export type EventCallbackFromCustomEvent<
-    T extends TypedCustomEvent<string, unknown>,
-> = Fn<[event: T], void>;
-
-export type CustomEventMap = Record<string, unknown>;
-
-export type EventTargetCompatible = Extract<
-    Parameters<EventTarget["addEventListener"]>[1],
-    Fn
->;
-
-type CustomEventDetailParameter<
-    T extends Record<string, unknown>,
-    K extends keyof T,
-> = unknown extends T[K] ? [detail?: unknown]
-    : undefined extends T[K] ? [detail?: T[K]]
-    : T[K] extends never ? []
-    : [detail: T[K]];
-
-type CustomEventListenerMap<
-    Type extends string = string,
-    Detail = unknown,
-> = Map<
-    | CustomEventCallbackOn<Type, Detail>
-    | CustomEventCallbackAddEventListener<Type, Detail>,
-    CustomEventCallbackAddEventListener<Type, Detail>
->;
-
-// deno-lint-ignore no-explicit-any
+/**
+ * Strictly typed version of an `EventEmitter`. A `TypedEventEmitter` takes type
+ * parameters for mappings of event names to event data types, and strictly
+ * types method calls to the `EventEmitter` according to these event maps.
+ *
+ * @typeParam UserEvents - `CustomEventMap` of user-defined events that can be
+ * listened to
+ * @typeParam ReservedEvents - `CustomEventMap` of reserved events, that can be
+ * emitted by an extending class with `emitReserved`, and can be listened to
+ */
 export class EventEmitter<
-    T extends CustomEventMap = Record<string, any>,
-> extends EventTarget {
+    UserEvents extends CustomEventMap = CustomEventMap,
+    ReservedEvents extends CustomEventMap = Record<never, never>,
+> extends EventTarget implements TypedEventBroadcaster<UserEvents> {
     /**
      * @var __listeners__ A Map with all listeners, sorted by event
+     * the EventMap contains the listeners, the key is the callback, the user added
+     * (it can be a function, that only gets called with the detail of the event or a function (passed to `on` or `once`),
+     * but also a "valid" callback, if it was passed to `addEventListener`), the value is the callback, that is added to the EventTarget
+     * (a function that expects the detail of the event as parameter, and optionally removes the callback from this Map, if it was passed to `once` or
+     * `addEventListener` with the `once` argument to true, or pass the detail to the real callback)
      */
     protected __listeners__: Map<
-        string,
-        // deno-lint-ignore no-explicit-any
-        CustomEventListenerMap<string, any>
+        EvName,
+        CustomEventListenerMap<ReservedEvents, UserEvents>
     > = new Map();
 
-    static createEvent<Type extends string, Detail>(
-        type: Type,
+    /**
+     * create a typed CustomEvent, which will have a typed `type` property
+     * @param type The type / name of the event, will be the `type` property
+     */
+    static createEvent<Type extends EvName>(
+        type: EvName,
+    ): TypedCustomEvent<Type, undefined>;
+
+    /**
+     * create a typed CustomEvent, which will have types for the `detail` and the `type` property
+     * @param type The type / name of the event, will be the `type` property
+     * @param detail Optional - the detail of the event, will be the `detail` property
+     * @param init Optional - a CustomEventInit object without the `detail` property
+     */
+    static createEvent<Type extends EvName, Detail>(
+        type: EvName,
+        detail: Detail,
+        init?: Omit<CustomEventInit, "detail">,
+    ): TypedCustomEvent<Type, Detail>;
+
+    static createEvent<Ev extends EvName, Detail>(
+        type: Ev,
         detail?: Detail,
         init?: Omit<CustomEventInit, "detail">,
-    ): TypedCustomEvent<Type, Detail> {
+    ): TypedCustomEvent<Ev, Detail> {
         const evInit = { ...init, detail };
 
-        return new CustomEvent(type, evInit) as TypedCustomEvent<Type, Detail>;
+        return new CustomEvent(type, evInit) as TypedCustomEvent<Ev, Detail>;
     }
 
-    static detailPasser<T extends CustomEventMap, K extends keyof T & string>(
-        callback: CustomEventCallbackOn<K, T[K]>,
-    ) {
-        const call = (event: TypedCustomEvent<K, T[K]>): void => {
+    /**
+     * Creates a wrapper function around a given callback which passes the value of the `detail` property of a CustomEvent to the callback
+     * @param callback the callback to wrap
+     */
+    protected passOnlyDetail<
+        Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+    >(
+        callback: ReservedOrUserListenerOn<ReservedEvents, UserEvents, Ev>,
+    ): ReservedOrUserListenerAddEventListener<ReservedEvents, UserEvents, Ev> {
+        const call = ((
+            event: ReservedOrUserListenerAddEventListenerParams<
+                ReservedEvents,
+                UserEvents,
+                Ev
+            >,
+        ): void => {
             callback(event.detail);
-        };
+        }) as ReservedOrUserListenerAddEventListener<
+            ReservedEvents,
+            UserEvents,
+            Ev
+        >;
 
         return call;
     }
 
-    protected getOrCreateListeners<K extends keyof T & string>(
-        type: K,
-        // deno-lint-ignore no-explicit-any
-    ): CustomEventListenerMap<K, any> {
+    /**
+     * @param callbackToCall the callback to call
+     * @param callbackToRemove optional - the callback to use to remove the callback from the {@link __listeners__} Map, it must be the key in the Map.
+     * It is only necessary if the callback is added via {@link on} or {@link once}, because then the key callback differs from its value
+     */
+    protected removeAfterOneInvocation<
+        Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+    >(
+        type: Ev,
+        callbackToCall: ReservedOrUserListenerAddEventListener<
+            ReservedEvents,
+            UserEvents,
+            Ev
+        >,
+        callbackToRemove: ReservedOrUserListenerOnOrAddEventListener<
+            ReservedEvents,
+            UserEvents,
+            Ev
+        > = callbackToCall,
+    ): ReservedOrUserListenerAddEventListener<ReservedEvents, UserEvents, Ev> {
+        const cb = ((
+            event: ReservedOrUserListenerAddEventListenerParams<
+                ReservedEvents,
+                UserEvents,
+                Ev
+            >,
+        ): void => {
+            callbackToCall(event);
+
+            this.removeEventListener(type, callbackToRemove);
+        }) as ReservedOrUserListenerAddEventListener<
+            ReservedEvents,
+            UserEvents,
+            Ev
+        >;
+
+        return cb;
+    }
+
+    protected getOrCreateListeners<
+        Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+    >(type: Ev): CustomEventListenerMap<ReservedEvents, UserEvents, Ev> {
         if (!this.__listeners__.has(type)) {
             this.__listeners__.set(type, new Map());
         }
 
         return this.__listeners__.get(type)!;
     }
-
     /**
      * add a callback to an event or multiple events
      * @param type the event name the callback should listen to
      * @param callback the callback to execute when the event is dispatched
      * @param options event options {@link EventTarget["addEventListener"]}
      */
-    // @ts-expect-error <different implementation>
-    addEventListener<K extends keyof T & string>(
-        type: K,
-        callback: CustomEventCallbackAddEventListener<K, T[K]>,
-        options?: Parameters<EventTarget["addEventListener"]>[2],
+    // @ts-ignore <different implementation>
+    addEventListener<
+        Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+    >(
+        type: Ev,
+        callback: ReservedOrUserListenerAddEventListener<
+            ReservedEvents,
+            UserEvents,
+            Ev
+        >,
+        options?: boolean | AddEventListenerOptions,
     ): this {
+        let withOnce = callback;
+
+        if (typeof options !== "boolean" && options?.once) {
+            withOnce = this.removeAfterOneInvocation(type, callback);
+        }
+
         super.addEventListener(
             type,
-            callback as EventTargetCompatible,
+            withOnce as EventTargetCompatible,
             options,
         );
 
-        this.getOrCreateListeners(type).set(callback, callback);
+        this.getOrCreateListeners(type).set(callback, withOnce);
 
         return this;
     }
@@ -121,10 +188,10 @@ export class EventEmitter<
      * @param callback the callback to execute when the event is dispatched
      * @param options event options {@link EventTarget["addEventListener"]}
      */
-    on<K extends keyof T & string>(
-        type: K,
-        callback: CustomEventCallbackOn<K, T[K]>,
-        options?: Parameters<EventTarget["addEventListener"]>[2],
+    on<Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>>(
+        type: Ev,
+        callback: ReservedOrUserListenerOn<ReservedEvents, UserEvents, Ev>,
+        options?: boolean | AddEventListenerOptions,
     ): this;
 
     /**
@@ -133,27 +200,38 @@ export class EventEmitter<
      * @param callback the callback to execute when the event is dispatched
      * @param options event options {@link EventTarget["addEventListener"]}
      */
-    on<K extends keyof T & string>(
-        types: K[],
-        callback: CustomEventCallbackOn<K, T[K]>,
-        options?: Parameters<EventTarget["addEventListener"]>[2],
+    on<Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>>(
+        types: Ev[],
+        callback: ReservedOrUserListenerOn<ReservedEvents, UserEvents, Ev>,
+        options?: boolean | AddEventListenerOptions,
     ): this;
 
-    on<K extends keyof T & string>(
-        types: K | K[],
-        callback: CustomEventCallbackOn<K, T[K]>,
-        options?: Parameters<EventTarget["addEventListener"]>[2],
-    ) {
-        const detailOnly = EventEmitter.detailPasser(callback);
+    on<Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>>(
+        types: Ev | Ev[],
+        callback: ReservedOrUserListenerOn<ReservedEvents, UserEvents, Ev>,
+        options?: boolean | AddEventListenerOptions,
+    ): this {
+        const detailOnly = this.passOnlyDetail(callback);
 
-        const addCallback = (type: K) => {
+        const addCallback = (type: Ev) => {
+            let withOnce = detailOnly;
+
+            if (typeof options !== "boolean" && options?.once) {
+                withOnce = this.removeAfterOneInvocation(
+                    type,
+                    detailOnly,
+                    callback,
+                );
+            }
+
+            // if we call this.addEventListener, the callback will be added two times to the __listeners__ Map
             super.addEventListener(
                 type,
-                detailOnly as EventTargetCompatible,
+                withOnce as EventTargetCompatible,
                 options,
             );
 
-            this.getOrCreateListeners(type).set(callback, detailOnly);
+            this.getOrCreateListeners(type).set(callback, withOnce);
         };
 
         if (typeof types === "string") {
@@ -173,10 +251,10 @@ export class EventEmitter<
      * @param callback the callback to execute when the event is dispatched
      * @param options event options {@link EventTarget["addEventListener"]}
      */
-    once<K extends keyof T & string>(
-        type: K,
-        callback: CustomEventCallbackOn<K, T[K]>,
-        options?: Parameters<EventTarget["addEventListener"]>[2],
+    once<Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>>(
+        type: Ev,
+        callback: ReservedOrUserListenerOn<ReservedEvents, UserEvents, Ev>,
+        options?: boolean | AddEventListenerOptions,
     ): this;
 
     /**
@@ -185,27 +263,21 @@ export class EventEmitter<
      * @param callback the callback to execute when the event is dispatched
      * @param options event options {@link EventTarget["addEventListener"]}
      */
-    once<K extends keyof T & string>(
-        types: K[],
-        callback: CustomEventCallbackOn<K, T[K]>,
-        options?: Parameters<EventTarget["addEventListener"]>[2],
+    once<Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>>(
+        types: Ev[],
+        callback: ReservedOrUserListenerOn<ReservedEvents, UserEvents, Ev>,
+        options?: boolean | AddEventListenerOptions,
     ): this;
 
-    /**
-     * add a callback to one or multiple events only once. After that, the listener is removed.
-     * @param types an array of the event names the callback should be listen to
-     * @param callback the callback to execute when the event is dispatched
-     * @param options event options {@link EventTarget["addEventListener"]}
-     */
-    once<K extends keyof T & string>(
-        types: K | K[],
-        callback: CustomEventCallbackOn<K, T[K]>,
-        options?: Parameters<EventTarget["addEventListener"]>[2],
+    once<Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>>(
+        types: Ev | Ev[],
+        callback: ReservedOrUserListenerOn<ReservedEvents, UserEvents, Ev>,
+        options?: boolean | AddEventListenerOptions,
     ): this {
         options ||= {};
 
         this.on(
-            // @ts-expect-error <crazy, there are two overloads, but it is not ok for typescript>
+            // @ts-ignore <there are matching overloads, but typescript doesn't seem to recognize that>
             types,
             callback,
             Object.assign(options, {
@@ -216,26 +288,28 @@ export class EventEmitter<
         return this;
     }
 
-    // @ts-expect-error <different implementation>
-    removeEventListener<K extends keyof T & string>(
-        type: K,
-        callback:
-            | CustomEventCallbackAddEventListener<K, T[K]>
-            | CustomEventCallbackOn<K, T[K]>,
-        options?: Parameters<EventTarget["removeEventListener"]>[2],
+    // @ts-ignore <different implementation>
+    removeEventListener<
+        Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+    >(
+        type: Ev,
+        callback: ReservedOrUserListenerOnOrAddEventListener<
+            ReservedEvents,
+            UserEvents,
+            Ev
+        >,
+        options?: boolean | EventListenerOptions,
     ): this {
         const realCb = this.__listeners__.get(type)?.get(callback);
 
         if (realCb) {
             super.removeEventListener(
                 type,
-                this.__listeners__.get(type)!.get(
-                    callback,
-                )! as EventTargetCompatible,
+                realCb as EventTargetCompatible,
                 options,
             );
 
-            this.getOrCreateListeners(type).delete(callback);
+            this.__listeners__.get(type)!.delete(callback);
         }
 
         return this;
@@ -244,30 +318,37 @@ export class EventEmitter<
     /**
      * remove all EventListeners
      */
-    off<K extends keyof T & string>(): this;
+    off(): this;
 
     /**
      * remove all EventListeners for a specific event
      * @param type the name of the event all listeners should be removed
      */
-    off<K extends keyof T & string>(type: K): this;
+    off<Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>>(
+        type: Ev,
+    ): this;
 
     /**
      * remove all EventListeners for multiple specific events
      * @param types an array of events for who all listeners should be removed
      */
-    off<K extends keyof T & string>(types: K[]): this;
+    off<Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>>(
+        types: Ev[],
+    ): this;
 
     /**
      * remove a specific EventListener for a specific event
      * @param type the name of the event for that all listeners should be removed
      * @param callback the callback function to remove
      */
-    off<K extends keyof T & string>(
-        type: K,
-        callback:
-            | CustomEventCallbackOn<K, T[K]>
-            | CustomEventCallbackAddEventListener<K, T[K]>,
+    off<Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>>(
+        type: Ev,
+        callback: ReservedOrUserListenerOnOrAddEventListener<
+            ReservedEvents,
+            UserEvents,
+            Ev
+        >,
+        options?: boolean | EventListenerOptions,
     ): this;
 
     /**
@@ -275,27 +356,37 @@ export class EventEmitter<
      * @param types an array of events for who all listeners should be removed
      * @param callback the callback function to remove
      */
-    off<K extends keyof T & string>(
-        types: K[],
-        callback:
-            | CustomEventCallbackOn<K, T[K]>
-            | CustomEventCallbackAddEventListener<K, T[K]>,
+    off<Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>>(
+        types: Ev[],
+        callback: ReservedOrUserListenerOnOrAddEventListener<
+            ReservedEvents,
+            UserEvents,
+            Ev
+        >,
+        options?: boolean | EventListenerOptions,
     ): this;
 
-    off<K extends keyof T & string>(
-        types?: K | K[],
-        callback?:
-            | CustomEventCallbackOn<K, T[K]>
-            | CustomEventCallbackAddEventListener<K, T[K]>,
+    off<Ev extends EventNames<UserEvents>>(
+        types?: Ev | Ev[],
+        callback?: ReservedOrUserListenerOnOrAddEventListener<
+            ReservedEvents,
+            UserEvents,
+            Ev
+        >,
+        options?: boolean | EventListenerOptions,
     ): this {
         const doRemove = (
-            type: K,
-            optionalCallback?: CustomEventCallbackAddEventListener<K, T[K]>,
+            type: Ev,
+            optionalCallback?: ReservedOrUserListenerOnOrAddEventListener<
+                ReservedEvents,
+                UserEvents,
+                Ev
+            >,
         ) => {
             const cb = optionalCallback ?? callback;
 
             if (cb) {
-                this.removeEventListener(type, cb);
+                this.removeEventListener(type, cb, options);
             }
         };
 
@@ -303,18 +394,18 @@ export class EventEmitter<
         if (!types && !callback) {
             this.__listeners__.forEach((map, type) => {
                 map.forEach((_value, callback) => {
-                    doRemove(type as K, callback);
+                    doRemove(type as Ev, callback);
                 });
             });
 
             this.__listeners__.clear();
         } // remove all EventListeners for specific event(s)
         else if (types && !callback) {
-            const removeAllForOneType = (type: K) => {
+            const removeAllForOneType = (type: Ev) => {
                 const listeners = this.__listeners__.get(type);
 
-                listeners?.forEach((listener) => {
-                    doRemove(type, listener);
+                listeners?.forEach((_listener, realCb) => {
+                    doRemove(type, realCb);
                 });
 
                 this.__listeners__.delete(type);
@@ -345,13 +436,13 @@ export class EventEmitter<
     }
 
     /**
-     * @param type the name of the event
+     * @param event the event
      * @returns Dispatches a synthetic event event to target and returns true
      * if either event's cancelable attribute value is false or its preventDefault() method was not invoked,
      * and false otherwise.
      */
-    dispatchEvent<E extends Event>(type: E): boolean {
-        return super.dispatchEvent(type);
+    dispatchEvent<Ev extends Event>(event: Ev): boolean {
+        return super.dispatchEvent(event);
     }
 
     /**
@@ -359,16 +450,67 @@ export class EventEmitter<
      */
     dispatch = this.emit;
 
+    protected _emit<
+        Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+    >(
+        type: Ev,
+        ...[detail]: CustomEventDetailParameter<UserEvents & ReservedEvents, Ev>
+    ): this {
+        const event = EventEmitter.createEvent(type, detail);
+
+        this.dispatchEvent(event);
+
+        return this;
+    }
+
     /**
      * Emit an event with given detail
      * Calls all listeners that listen to the emitted event
+     *
      * @param type name of the event
      * @param param1 the detail that should be applied to the event
      * @returns a Promise that resolves with this
      */
-    emit<K extends keyof T & string>(
-        type: K,
-        ...[detail]: CustomEventDetailParameter<T, K>
+    emit<Ev extends EventNames<UserEvents>>(
+        type: Ev,
+        ...[detail]: CustomEventDetailParameter<UserEvents, Ev>
+    ): this {
+        // @ts-ignore <I don't know why this doesn't work>
+        this._emit(type, ...[detail]!);
+
+        return this;
+    }
+
+    /**
+     * Emits a reserved event.
+     *
+     * This method is `protected`, so that only a class extending
+     * `StrictEventEmitter` can emit its own reserved events.
+     *
+     * @param type Reserved event name
+     * @param detail Arguments to emit along with the event
+     */
+    protected emitReserved<Ev extends EventNames<ReservedEvents>>(
+        type: Ev,
+        ...[detail]: CustomEventDetailParameter<ReservedEvents, Ev>
+    ): this {
+        // @ts-ignore <I don't know why this doesn't work>
+        return this._emit(type, ...[detail]!);
+    }
+
+    /**
+     * Emits an event.
+     *
+     * This method is `protected`, so that only a class extending
+     * `StrictEventEmitter` can get around the strict typing. This is useful for
+     * calling `emit.apply`, which can be called as `emitUntyped.apply`.
+     *
+     * @param type Event name
+     * @param args Arguments to emit along with the event
+     */
+    protected emitUntyped(
+        type: EvName,
+        ...[detail]: CustomEventDetailParameter<CustomEventMap, EvName>
     ): this {
         const event = EventEmitter.createEvent(type, detail);
 
@@ -381,32 +523,47 @@ export class EventEmitter<
      * wait for an event to be dispatched
      * @param type the typed name of the event
      */
-    pull<K extends keyof T & string>(type: K): Promise<T[K]>;
+    pull<Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>>(
+        type: Ev,
+    ): Promise<UserEvents[Ev]>;
 
     /**
      * wait for an event to be dispatched and reject after a specific amount of milliseconds
      * @param type the typed name of the event
      * @param timeout optional timeout
      */
+    pull<Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>>(
+        type: Ev,
+        timeout: number,
+    ): Promise<UserEvents[Ev]>;
 
-    pull<K extends keyof T & string>(type: K, timeout: number): Promise<T[K]>;
-
-    pull<K extends keyof T & string>(type: K, timeout?: number): Promise<T[K]> {
+    pull<Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>>(
+        type: Ev,
+        timeout?: number,
+    ): Promise<UserEvents[Ev]> {
         return new Promise((resolve, reject) => {
-            let timeoutId: number | null;
+            let timeoutId: number;
 
-            this.once(type, (event) => {
+            const callback = ((
+                detail: ReservedOrUserListenerOnParams<
+                    ReservedEvents,
+                    UserEvents,
+                    Ev
+                >,
+            ) => {
                 timeoutId && clearTimeout(timeoutId);
 
-                resolve(event);
-            });
+                resolve(detail);
+            }) as ReservedOrUserListenerOn<ReservedEvents, UserEvents, Ev>;
+
+            this.once(type, callback);
 
             if (timeout) {
                 timeoutId = setTimeout(() => {
                     clearTimeout(timeoutId!);
 
-                    reject("Timed out!");
-                });
+                    reject(new Error("Timed out!"));
+                }, timeout);
             }
         });
     }
@@ -424,9 +581,9 @@ export class EventEmitter<
      * @param options event options {@link EventTarget["addEventListener"]}
      * @returns cleanup function
      */
-    subscribe<K extends keyof T & string>(
-        type: K,
-        callback: CustomEventCallbackOn<K, T[K]>,
+    subscribe<Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>>(
+        type: Ev,
+        callback: ReservedOrUserListenerOn<ReservedEvents, UserEvents, Ev>,
         options?: Parameters<EventTarget["addEventListener"]>[2],
     ): Fn<never, void> {
         this.on(type, callback, options);
@@ -437,44 +594,72 @@ export class EventEmitter<
     }
 
     /**
+     * Get all EventListeners
+     */
+    getListeners<
+        Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+    >(): Map<
+        EvName,
+        Set<
+            ReservedOrUserListenerOnOrAddEventListener<
+                ReservedEvents,
+                UserEvents,
+                Ev
+            >
+        >
+    >;
+
+    /**
      * Get all EventListeners for a specific Event
      * @param type the event name
      */
-    getListeners<K extends keyof T & string>(
-        type: K,
-    ): Set<CustomEventCallbackAddEventListener | CustomEventCallbackOn>;
-
-    /**
-     * Get all EventListeners
-     */
-    getListeners(): Map<
-        string,
-        Set<CustomEventCallbackAddEventListener | CustomEventCallbackOn>
+    getListeners<
+        Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+    >(
+        type: string,
+    ): Set<
+        ReservedOrUserListenerOnOrAddEventListener<
+            ReservedEvents,
+            UserEvents,
+            Ev
+        >
     >;
 
-    getListeners<K extends keyof T & string>(
-        type?: K,
+    getListeners<
+        Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+    >(
+        type?: Ev,
     ):
         | Set<
-            | CustomEventCallbackAddEventListener<string, unknown>
-            | CustomEventCallbackOn<string, unknown>
+            ReservedOrUserListenerOnOrAddEventListener<
+                ReservedEvents,
+                UserEvents,
+                Ev
+            >
         >
         | Map<
-            string,
+            Ev,
             Set<
-                | CustomEventCallbackAddEventListener<string, unknown>
-                | CustomEventCallbackOn<string, unknown>
+                ReservedOrUserListenerOnOrAddEventListener<
+                    ReservedEvents,
+                    UserEvents,
+                    Ev
+                >
             >
         > {
-        const getListenersOfType = (type: string) => {
+        const getListenersOfType = (type: Ev) => {
             const listeners = new Set<
-                CustomEventCallbackAddEventListener | CustomEventCallbackOn
+                ReservedOrUserListenerOnOrAddEventListener<
+                    ReservedEvents,
+                    UserEvents,
+                    Ev
+                >
             >();
 
-            const listenersSet = this.__listeners__.get(type);
+            const listenersMap = this.__listeners__.get(type);
 
-            if (listenersSet) {
-                for (const listener of listenersSet.values()) {
+            if (listenersMap) {
+                for (const listener of listenersMap.keys()) {
                     listeners.add(listener);
                 }
             }
@@ -484,18 +669,20 @@ export class EventEmitter<
 
         if (!type) {
             const listeners = new Map<
-                string,
-                Set<CustomEventCallbackAddEventListener | CustomEventCallbackOn>
+                Ev,
+                Set<
+                    ReservedOrUserListenerOnOrAddEventListener<
+                        ReservedEvents,
+                        UserEvents,
+                        Ev
+                    >
+                >
             >();
 
-            const entries = this.__listeners__.entries();
+            const entries = this.__listeners__.keys();
 
-            // console.log(entries, this.__listeners__);
-
-            for (const [type] of entries) {
-                // console.log(type);
-
-                listeners.set(type, getListenersOfType(type));
+            for (const type of entries) {
+                listeners.set(type as Ev, getListenersOfType(type as Ev));
             }
 
             return listeners;
@@ -503,6 +690,8 @@ export class EventEmitter<
 
         return getListenersOfType(type);
     }
+
+    listeners = this.getListeners;
 }
 
 export default EventEmitter;

@@ -1,271 +1,312 @@
-// import type { CustomEventMap, TypedCustomEvent } from "./EventEmitter.ts";
+import { EventEmitter } from "./EventEmitter.ts";
 import {
-    assertEquals,
+    assert,
+    assertRejects,
     assertStrictEquals,
-    // assertThrows,
     fail,
 } from "https://deno.land/std@0.127.0/testing/asserts.ts";
 
-import { EventEmitter } from "./EventEmitter.ts";
+Deno.test("EventEmitter", async (ctx) => {
+    type ReservedEvents = {
+        reserved: string;
+        reserved2: [string];
+    };
 
-type Events = Record<string, unknown> & {
-    ping: undefined;
-    pong: string;
-    peng: { data: string };
+    type UserEvents = {
+        ping: string;
+        pong: { data: string };
+    };
+
+    class Implementing extends EventEmitter<UserEvents, ReservedEvents> {
+        constructor() {
+            super();
+
+            const timeout = setTimeout(() => {
+                this.emitReserved("reserved", "reserved");
+
+                this.emitReserved("reserved2", ["reserved2"]);
+
+                clearTimeout(timeout);
+            }, 10);
+        }
+    }
+
+    await ctx.step("reserved events", async (ctx) => {
+        await ctx.step("listening is possible", () => {
+            const instance = new Implementing();
+
+            instance.once("reserved", (reserved) => {
+                assertStrictEquals(reserved, "reserved");
+            });
+        });
+    });
+});
+
+type Events = {
+    foo: "bar";
+    bar: "bar";
+    baz: undefined;
+    pong: "bar";
+    adjustCount: "increment" | "decrement";
 };
 
-Deno.test("types of detail", async (ctx) => {
-    await ctx.step("typed", () => {
-        const emitter = new EventEmitter<Events>();
+Deno.test("EventEmitter base functions", async (ctx) => {
+    /**
+     * @see https://deno.land/x/event@2.0.0/test.ts
+     */
 
-        emitter.on("ping", (detail) => {
-            console.log("ping: ", detail);
+    await ctx.step("on", async (ctx) => {
+        await ctx.step("one event", () => {
+            const target = new EventEmitter<Events>();
 
-            assertEquals(detail, undefined);
+            target.on("foo", (detail) => {
+                assertStrictEquals(detail, "bar");
+            });
+
+            target.emit("foo", "bar");
         });
 
-        emitter.emit("ping");
+        await ctx.step("multiple events", () => {
+            const target = new EventEmitter<Events>();
 
-        emitter.on("pong", (detail) => {
-            console.log("pong: ", detail);
+            target.on(["foo", "bar"], (detail) => {
+                assertStrictEquals(detail, "bar");
+            });
 
-            assertEquals(detail, "hello");
-        });
+            target.emit("foo", "bar");
 
-        emitter.emit("pong", "hello");
-
-        emitter.on("peng", (detail) => {
-            console.log("peng: ", detail);
-
-            assertEquals(detail.data, "peng emitted!");
-        });
-
-        emitter.emit("peng", {
-            data: "peng emitted!",
+            target.emit("bar", "bar");
         });
     });
 
-    await ctx.step("untyped", () => {
-        const emitter = new EventEmitter();
+    await ctx.step("once", () => {
+        const target = new EventEmitter<Events>();
 
-        emitter.on("hello", (detail) => {
-            assertEquals(detail, "hello");
+        target.once("pong", (detail) => {
+            assertStrictEquals(detail, "bar");
         });
 
-        emitter.emit("hello", "hello");
-    });
-});
-
-/**
- * @see https://deno.land/x/event@2.0.0/test.ts
- */
-
-Deno.test("on", () => {
-    const ee = new EventEmitter<Events>();
-
-    ee.on("foo", (detail) => {
-        assertEquals(detail, "bar");
+        target.emit("pong", "bar");
     });
 
-    ee.emit("foo", "bar");
-});
+    await ctx.step("off", async (ctx) => {
+        await ctx.step("exact off", () => {
+            const target = new EventEmitter<Events>();
 
-Deno.test("once", () => {
-    const ee = new EventEmitter<Events>();
+            function foo() {
+                fail();
+            }
 
-    ee.once("pong", (detail) => {
-        assertEquals(detail, "bar");
+            target.on("foo", foo).on("bar", foo).on("baz", foo);
+
+            target.off("foo", foo);
+
+            target.off(["bar", "baz"], foo);
+
+            target.emit("foo", "bar");
+        });
+
+        await ctx.step("offEvent", () => {
+            const target = new EventEmitter<Events>();
+
+            let i = 0;
+
+            target.on("foo", () => i--);
+
+            target.on("foo", () => i--);
+
+            target.on("baz", () => (i = i + 2));
+
+            target.on("bar", () => i++);
+
+            target.off("foo");
+
+            target.emit("foo", "bar");
+
+            assertStrictEquals(i, 0);
+
+            target.emit("bar", "bar");
+
+            assertStrictEquals(i, 1);
+        });
+
+        await ctx.step("offEvent", () => {
+            const target = new EventEmitter<Events>();
+
+            let i = 0;
+
+            target.on("foo", () => i--);
+
+            target.on("bar", () => i++);
+
+            target.emit("foo", "bar");
+
+            assertStrictEquals(i, -1);
+
+            target.off(["foo", "bar"]);
+
+            target.emit("bar", "bar");
+
+            assertStrictEquals(i, -1);
+        });
+
+        await ctx.step("offAll", () => {
+            const target = new EventEmitter<Events>();
+
+            let i = 0;
+
+            target.on("foo", () => i++);
+
+            target.on("bar", () => i++);
+
+            target.off();
+
+            target.emit("foo", "bar").emit("bar", "bar");
+
+            assertStrictEquals(i, 0);
+        });
     });
 
-    ee.emit("pong", "bar");
-});
+    await ctx.step("chainable", () => {
+        const target = new EventEmitter<Events>();
 
-Deno.test("off", () => {
-    const ee = new EventEmitter<Events>();
-
-    function foo() {
-        fail();
-    }
-
-    ee.on("foo", foo);
-
-    ee.off("foo", foo);
-
-    ee.emit("foo", "bar");
-});
-
-Deno.test("offEvent", () => {
-    const ee = new EventEmitter<Events>();
-
-    let i = 0;
-
-    ee.on("foo", () => i++);
-
-    ee.on("foo", () => i++);
-
-    ee.off();
-
-    ee.emit("foo", "bar");
-
-    assertEquals(i, 0);
-});
-
-Deno.test("offAll", () => {
-    const ee = new EventEmitter<Events>();
-
-    let i = 0;
-
-    ee.on("foo", () => i++);
-
-    ee.on("bar", () => i++);
-
-    ee.off();
-
-    ee.emit("foo", "bar");
-
-    assertEquals(i, 0);
-});
-
-Deno.test("chainable", () => {
-    const ee = new EventEmitter<Events>();
-
-    function foo() {
-        fail();
-    }
-
-    ee
-        .on("foo", foo)
-        .off("foo", foo);
-
-    ee.emit("foo", "bar");
-});
-
-Deno.test("extend", () => {
-    class Extending extends EventEmitter<Events> {
-        foo() {
-            this.emit("pong", "pong");
+        function foo() {
+            fail();
         }
-    }
 
-    const ext = new Extending();
-
-    ext.on("pong", (detail) => {
-        assertEquals(detail, "pong");
-    });
-
-    ext.foo();
-
-    ext.emit("pong", "pong");
-});
-
-Deno.test("extend with custom events", () => {
-    class Extending extends EventEmitter<Events> {
-        foo() {
-            this.emit("pong", "pong");
+        function bar(detail: string) {
+            assertStrictEquals(detail, "bar");
         }
-    }
 
-    const ext = new Extending();
+        function barEvent(detail: CustomEvent) {
+            assertStrictEquals(detail.detail, "bar");
+        }
 
-    ext.on("pong", (detail) => {
-        assertEquals(detail, "pong");
+        target.on("foo", foo).off("foo", foo);
+
+        target.emit("foo", "bar");
+
+        target
+            .once("foo", bar)
+            .addEventListener("foo", barEvent)
+            .emit("foo", "bar");
     });
 
-    ext.foo();
+    await ctx.step("pull", async (ctx) => {
+        await ctx.step("without timeout", () => {
+            const target = new EventEmitter<Events>();
 
-    ext.emit("pong", "pong");
-});
+            const promise = target.pull("foo");
 
-Deno.test("pub / sub", () => {
-    const ee = new EventEmitter<Events>();
+            const timeout = setTimeout(async () => {
+                target.emit("foo", "bar");
 
-    const cleanup = ee.subscribe("pong", (detail) => {
-        assertEquals<string>(detail, "hello");
+                const detail = await promise;
+
+                assertStrictEquals(detail, "bar");
+
+                clearTimeout(timeout);
+            }, 10);
+        });
+
+        await ctx.step("with timeout", async (ctx) => {
+            await ctx.step("should resolve", () => {
+                const target = new EventEmitter<Events>();
+
+                const promise = target.pull("foo", 20);
+
+                const timeout = setTimeout(async () => {
+                    target.emit("foo", "bar");
+
+                    const detail = await promise;
+
+                    assertStrictEquals(detail, "bar");
+
+                    clearTimeout(timeout);
+                }, 10);
+            });
+
+            await ctx.step("should reject", async () => {
+                const target = new EventEmitter<Events>();
+
+                await assertRejects(() => target.pull("foo", 10));
+            });
+        });
     });
 
-    ee.emit("pong", "hello");
+    await ctx.step("getListeners", async (ctx) => {
+        await ctx.step("all listeners", () => {
+            const target = new EventEmitter<Events>();
 
-    cleanup();
+            const callback = () => {};
 
-    const cleanup2 = ee.subscribe("peng", (detail) => {
-        assertEquals<string>(detail.data, "hello");
+            const callback2 = () => {};
+
+            target.once(["foo", "bar"], callback);
+
+            target.addEventListener("foo", callback2);
+
+            const listeners = target.getListeners();
+
+            assertStrictEquals(listeners.size, 2);
+
+            assert(listeners.get("foo")?.has(callback));
+
+            assert(listeners.get("foo")?.has(callback2));
+
+            assert(listeners.get("bar")?.has(callback));
+        });
+
+        await ctx.step("listeners of type", () => {
+            const target = new EventEmitter<Events>();
+
+            const callback = () => {};
+
+            const callback2 = () => {};
+
+            target.on("foo", callback);
+
+            target.addEventListener("foo", callback2, { once: true });
+
+            assertStrictEquals(target.getListeners("foo").size, 2);
+
+            assert(target.getListeners("foo").has(callback));
+        });
+
+        await ctx.step("listeners are removed", () => {
+            const target = new EventEmitter<Events>();
+
+            const callback = () => {},
+                callback2 = () => {},
+                callback3 = () => {},
+                callback4 = () => {};
+
+            target
+                .once("foo", callback)
+                .on("foo", callback2)
+                .addEventListener("foo", callback3, {
+                    once: true,
+                })
+                .addEventListener("foo", callback4);
+
+            assertStrictEquals(target.getListeners("foo").size, 4);
+
+            target.emit("foo", "bar");
+
+            assertStrictEquals(target.getListeners("foo").size, 2);
+
+            target.off("foo", callback2);
+
+            assertStrictEquals(target.getListeners("foo").size, 1);
+
+            target.removeEventListener("foo", callback4);
+
+            assertStrictEquals(target.getListeners("foo").size, 0);
+        });
     });
-
-    ee.emit("peng", {
-        data: "hello",
-    });
-
-    cleanup2();
-});
-
-Deno.test("getListeners", () => {
-    const ee = new EventEmitter<Events>();
-
-    const cb1 = () => {};
-
-    const cb2 = () => {};
-
-    ee.on("pong", cb1);
-
-    ee.addEventListener("pong", cb2);
-
-    ee.addEventListener("ping", () => {});
-
-    let listeners = ee.getListeners();
-
-    assertEquals(listeners.size, 2);
-
-    assertEquals(listeners.get("pong")!.size, 2);
-
-    assertEquals(listeners.get("ping")!.size, 1);
-
-    ee.off("ping");
-
-    listeners = ee.getListeners();
-
-    assertEquals(listeners.size, 1);
-
-    assertEquals(listeners.get("pong")!.size, 2);
-
-    assertEquals(listeners.get("ping"), undefined);
-
-    ee.off("pong", cb1);
-
-    listeners = ee.getListeners();
-
-    assertEquals(listeners.get("pong")!.size, 1);
-
-    ee.off();
-
-    listeners = ee.getListeners();
-
-    console.log(listeners);
-
-    assertEquals(listeners.size, 0);
-});
-
-// https://github.com/jsejcksn/deno-utils/blob/main/event.test.ts
-
-Deno.test("EventEmitter.createEvent", async (ctx) => {
-    await ctx.step("created event has correct property values", () => {
-        const eventType = "name";
-        const eventDetail = { string: "", number: NaN };
-        const ev = EventEmitter.createEvent(eventType, eventDetail);
-
-        // type-checking
-        ev.type === eventType;
-        ev.detail === eventDetail;
-
-        assertStrictEquals(ev.type, eventType);
-        assertStrictEquals(ev.detail, eventDetail);
-    });
-});
-
-Deno.test("EventEmitter", async (ctx) => {
-    type CountMap = { adjustCount: "increment" | "decrement" };
 
     await ctx.step("dispatches events", () => {
-        const target = new EventEmitter<CountMap>();
+        const target = new EventEmitter<Events>();
         let count = 0;
 
         target.addEventListener("adjustCount", ({ detail }) => {
@@ -291,10 +332,10 @@ Deno.test("EventEmitter", async (ctx) => {
     });
 
     await ctx.step('correctly implements "once" option', () => {
-        const target = new EventEmitter<CountMap>();
+        const target = new EventEmitter<Events>();
         let count = 0;
 
-        const cb = (ev: CustomEvent<CountMap["adjustCount"]>) => {
+        const cb = (ev: CustomEvent) => {
             count += ev.detail === "increment" ? 1 : -1;
         };
 
@@ -317,7 +358,7 @@ Deno.test("EventEmitter", async (ctx) => {
     });
 
     await ctx.step('"subscribe" method returns "unsubscribe" function', () => {
-        const target = new EventEmitter<CountMap>();
+        const target = new EventEmitter<Events>();
 
         let count = 0;
 
