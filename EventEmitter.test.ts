@@ -55,10 +55,10 @@ Deno.test("EventEmitter", async (ctx) => {
     }
 
     await ctx.step("reserved events", async (ctx) => {
-        await ctx.step("listening is possible", () => {
+        await ctx.step("listening is possible", async () => {
             const instance = new Implementing();
 
-            instance.once("reserved", (reserved) => {
+            await instance.pull("reserved").then((reserved) => {
                 assertStrictEquals(reserved, "reserved");
             });
         });
