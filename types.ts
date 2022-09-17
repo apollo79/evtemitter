@@ -30,16 +30,20 @@ export type EventTargetCompatible = Extract<
     Parameters<EventTarget["addEventListener"]>[1],
     Fn
 >;
-
-export type CustomEventMap = Record<EvName, unknown>;
+// for untyped emitter
+// deno-lint-ignore no-explicit-any
+export type CustomEventMap = Record<EvName, any>;
 
 export type CustomEventListenerMap<
-    Type extends EvName = EvName,
-    Detail = unknown,
+    ReservedEvents extends CustomEventMap,
+    UserEvents extends CustomEventMap,
+    Ev extends ReservedOrUserEventNames<
+        ReservedEvents,
+        UserEvents
+    > = ReservedOrUserEventNames<ReservedEvents, UserEvents>,
 > = Map<
-    | CustomEventCallbackOn<Type, Detail>
-    | CustomEventCallbackAddEventListener<Type, Detail>,
-    CustomEventCallbackAddEventListener<Type, Detail>
+    ReservedOrUserListenerOnOrAddEventListener<ReservedEvents, UserEvents, Ev>,
+    ReservedOrUserListenerAddEventListener<ReservedEvents, UserEvents, Ev>
 >;
 
 export type CustomEventDetailParameter<
@@ -69,3 +73,75 @@ export type CustomEventCallbackOn<
 export type FallbackToUntypedListener<T> = [T] extends [never]
     ? (...args: any[]) => void | Promise<void>
     : T;
+
+/**
+ * The event names that are either in ReservedEvents or in UserEvents
+ */
+export type ReservedOrUserEventNames<
+    ReservedEventsMap extends CustomEventMap,
+    UserEvents extends CustomEventMap,
+> = EventNames<ReservedEventsMap> | EventNames<UserEvents>;
+
+export type ReservedOrUserListenerParamsAddEventListener<
+    ReservedEvents extends CustomEventMap,
+    UserEvents extends CustomEventMap,
+    Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+> = Parameters<
+    ReservedOrUserListenerAddEventListener<ReservedEvents, UserEvents, Ev>
+>[0];
+
+/**
+ * Type of a listener of a user event or a reserved event. If `Ev` is in
+ * `ReservedEvents`, the reserved event listener is returned.
+ */
+export type ReservedOrUserListenerOn<
+    ReservedEvents extends CustomEventMap,
+    UserEvents extends CustomEventMap,
+    Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+> = FallbackToUntypedListener<
+    Ev extends EventNames<ReservedEvents>
+        ? CustomEventCallbackOn<Ev, ReservedEvents[Ev]>
+        : Ev extends EventNames<UserEvents>
+            ? CustomEventCallbackOn<Ev, UserEvents[Ev]>
+        : never
+>;
+
+export type ReservedOrUserListenerAddEventListener<
+    ReservedEvents extends CustomEventMap,
+    UserEvents extends CustomEventMap,
+    Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+> = FallbackToUntypedListener<
+    Ev extends EventNames<ReservedEvents>
+        ? CustomEventCallbackAddEventListener<Ev, ReservedEvents[Ev]>
+        : Ev extends EventNames<UserEvents>
+            ? CustomEventCallbackAddEventListener<Ev, UserEvents[Ev]>
+        : never
+>;
+
+export type ReservedOrUserListenerOnOrAddEventListener<
+    ReservedEvents extends CustomEventMap,
+    UserEvents extends CustomEventMap,
+    Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+> = FallbackToUntypedListener<
+    Ev extends EventNames<ReservedEvents> ? 
+            | CustomEventCallbackAddEventListener<Ev, ReservedEvents[Ev]>
+            | CustomEventCallbackOn<Ev, ReservedEvents[Ev]>
+        : Ev extends EventNames<UserEvents> ? 
+                | CustomEventCallbackAddEventListener<Ev, UserEvents[Ev]>
+                | CustomEventCallbackOn<Ev, UserEvents[Ev]>
+        : never
+>;
+
+export type ReservedOrUserListenerOnParams<
+    ReservedEvents extends CustomEventMap,
+    UserEvents extends CustomEventMap,
+    Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+> = Parameters<ReservedOrUserListenerOn<ReservedEvents, UserEvents, Ev>>[0];
+
+export type ReservedOrUserListenerAddEventListenerParams<
+    ReservedEvents extends CustomEventMap,
+    UserEvents extends CustomEventMap,
+    Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
+> = Parameters<
+    ReservedOrUserListenerAddEventListener<ReservedEvents, UserEvents, Ev>
+>[0];
