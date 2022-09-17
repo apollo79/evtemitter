@@ -78,13 +78,10 @@ There are different ways to use this EventEmitter:
   ```typescript
   import { EventEmitter } from "https://deno.land/x/evtemitter@2.0.0/mod.ts";
 
-  // Events that can be listened to
-  type ListenEvents = {
+  // Events that can be emitted via `emit`, `dispatch` and `publish` and that can be listened to
+  type UserEvents = {
       message: string;
   };
-
-  // Events that can be emitted via `emit` and `publish`
-  type EmitEvents = ListenEvents;
 
   // Events that can only be emitted via the protected `emitReserved` method. It is also possible to listen to these events
   type ReservedEvents = {
@@ -92,8 +89,7 @@ There are different ways to use this EventEmitter:
   };
 
   class Implementing extends EventEmitter<
-      ListenEvents,
-      EmitEvents,
+      UserEvents
       ReservedEvents
   > {
       constructor() {

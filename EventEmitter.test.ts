@@ -12,18 +12,12 @@ Deno.test("EventEmitter", async (ctx) => {
         reserved2: [string];
     };
 
-    type EmitEvents = {
+    type UserEvents = {
         ping: string;
         pong: { data: string };
     };
 
-    type ListenEvents = ReservedEvents & EmitEvents;
-
-    class Implementing extends EventEmitter<
-        ListenEvents,
-        EmitEvents,
-        ReservedEvents
-    > {
+    class Implementing extends EventEmitter<UserEvents, ReservedEvents> {
         constructor() {
             super();
 

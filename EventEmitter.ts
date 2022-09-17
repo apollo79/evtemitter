@@ -21,19 +21,15 @@ import type {
  * parameters for mappings of event names to event data types, and strictly
  * types method calls to the `EventEmitter` according to these event maps.
  *
- * @typeParam ListenEvents - `EventsMap` of user-defined events that can be
- * listened to with `on` or `once`
- * @typeParam EmitEvents - `EventsMap` of user-defined events that can be
- * emitted with `emit`
- * @typeParam ReservedEvents - `EventsMap` of reserved events, that can be
- * emitted by socket.io with `emitReserved`, and can be listened to with
- * `listen`.
+ * @typeParam UserEvents - `CustomEventMap` of user-defined events that can be
+ * listened to
+ * @typeParam ReservedEvents - `CustomEventMap` of reserved events, that can be
+ * emitted by an extending class with `emitReserved`, and can be listened to
  */
 export class EventEmitter<
     UserEvents extends CustomEventMap = CustomEventMap,
-    EmitEvents extends CustomEventMap = UserEvents,
     ReservedEvents extends CustomEventMap = Record<never, never>,
-> extends EventTarget implements TypedEventBroadcaster<EmitEvents> {
+> extends EventTarget implements TypedEventBroadcaster<UserEvents> {
     /**
      * @var __listeners__ A Map with all listeners, sorted by event
      * the EventMap contains the listeners, the key is the callback, the user added
@@ -455,10 +451,10 @@ export class EventEmitter<
     dispatch = this.emit;
 
     protected _emit<
-        Ev extends ReservedOrUserEventNames<ReservedEvents, EmitEvents>,
+        Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
     >(
         type: Ev,
-        ...[detail]: CustomEventDetailParameter<EmitEvents & ReservedEvents, Ev>
+        ...[detail]: CustomEventDetailParameter<UserEvents & ReservedEvents, Ev>
     ): this {
         const event = EventEmitter.createEvent(type, detail);
 
@@ -475,9 +471,9 @@ export class EventEmitter<
      * @param param1 the detail that should be applied to the event
      * @returns a Promise that resolves with this
      */
-    emit<Ev extends EventNames<EmitEvents>>(
+    emit<Ev extends EventNames<UserEvents>>(
         type: Ev,
-        ...[detail]: CustomEventDetailParameter<EmitEvents, Ev>
+        ...[detail]: CustomEventDetailParameter<UserEvents, Ev>
     ): this {
         // @ts-ignore <I don't know why this doesn't work>
         this._emit(type, ...[detail]!);
