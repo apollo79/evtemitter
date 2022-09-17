@@ -6,6 +6,27 @@ import {
     fail,
 } from "https://deno.land/std@0.127.0/testing/asserts.ts";
 
+const waitForTimeout = (
+    fn: (args?: unknown[]) => void | Promise<void>,
+    timeout: number,
+    // deno-lint-ignore no-explicit-any
+    ...args: any[]
+): Promise<void> => {
+    return new Promise((resolve) => {
+        const timeoutId = setTimeout(
+            async (args) => {
+                await fn(args);
+
+                clearTimeout(timeoutId);
+
+                resolve();
+            },
+            timeout,
+            ...args,
+        );
+    });
+};
+
 Deno.test("EventEmitter", async (ctx) => {
     type ReservedEvents = {
         reserved: string;
@@ -21,12 +42,14 @@ Deno.test("EventEmitter", async (ctx) => {
         constructor() {
             super();
 
-            const timeout = setTimeout(() => {
+            this.run();
+        }
+
+        protected async run() {
+            await waitForTimeout(() => {
                 this.emitReserved("reserved", "reserved");
 
                 this.emitReserved("reserved2", ["reserved2"]);
-
-                clearTimeout(timeout);
             }, 10);
         }
     }
@@ -193,36 +216,32 @@ Deno.test("EventEmitter base functions", async (ctx) => {
     });
 
     await ctx.step("pull", async (ctx) => {
-        await ctx.step("without timeout", () => {
+        await ctx.step("without timeout", async () => {
             const target = new EventEmitter<Events>();
 
             const promise = target.pull("foo");
 
-            const timeout = setTimeout(async () => {
+            await waitForTimeout(async () => {
                 target.emit("foo", "bar");
 
                 const detail = await promise;
 
                 assertStrictEquals(detail, "bar");
-
-                clearTimeout(timeout);
             }, 10);
         });
 
         await ctx.step("with timeout", async (ctx) => {
-            await ctx.step("should resolve", () => {
+            await ctx.step("should resolve", async () => {
                 const target = new EventEmitter<Events>();
 
                 const promise = target.pull("foo", 20);
 
-                const timeout = setTimeout(async () => {
+                await waitForTimeout(async () => {
                     target.emit("foo", "bar");
 
                     const detail = await promise;
 
                     assertStrictEquals(detail, "bar");
-
-                    clearTimeout(timeout);
                 }, 10);
             });
 
