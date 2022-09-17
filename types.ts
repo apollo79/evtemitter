@@ -71,6 +71,7 @@ export type CustomEventCallbackOn<
  * Needed because of https://github.com/microsoft/TypeScript/issues/41778
  */
 export type FallbackToUntypedListener<T> = [T] extends [never]
+    // deno-lint-ignore no-explicit-any
     ? (...args: any[]) => void | Promise<void>
     : T;
 
