@@ -7,7 +7,7 @@
 [![Language grade: JavaScript](https://img.shields.io/lgtm/grade/javascript/g/apollo79/evtemitter.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/apollo79/evtemitter/context:javascript)
 [![Deno](https://github.com/apollo79/evtemitter/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/apollo79/evtemitter/actions/workflows/codeql-analysis.yml)
 
-A typed Eventemitter for deno.
+A typed Eventemitter for [Deno](https://deno.land) and the browser.
 
 This EventEmitter is based on
 [CustomEvents](https://developer.mozilla.org/en-US/docs/Web/API/CustomEvent/CustomEvent)
