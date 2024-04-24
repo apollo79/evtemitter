@@ -1,10 +1,5 @@
 import { EventEmitter } from "./EventEmitter.ts";
-import {
-    assert,
-    assertRejects,
-    assertStrictEquals,
-    fail,
-} from "https://deno.land/std@0.127.0/testing/asserts.ts";
+import { assert, assertRejects, assertStrictEquals, fail } from "@std/assert";
 
 const waitForTimeout = (
     fn: (args?: unknown[]) => void | Promise<void>,

@@ -124,10 +124,10 @@ export type ReservedOrUserListenerOnOrAddEventListener<
     UserEvents extends CustomEventMap,
     Ev extends ReservedOrUserEventNames<ReservedEvents, UserEvents>,
 > = FallbackToUntypedListener<
-    Ev extends EventNames<ReservedEvents> ? 
+    Ev extends EventNames<ReservedEvents> ?
             | CustomEventCallbackAddEventListener<Ev, ReservedEvents[Ev]>
             | CustomEventCallbackOn<Ev, ReservedEvents[Ev]>
-        : Ev extends EventNames<UserEvents> ? 
+        : Ev extends EventNames<UserEvents> ?
                 | CustomEventCallbackAddEventListener<Ev, UserEvents[Ev]>
                 | CustomEventCallbackOn<Ev, UserEvents[Ev]>
         : never

@@ -585,7 +585,7 @@ export class EventEmitter<
         type: Ev,
         callback: ReservedOrUserListenerOn<ReservedEvents, UserEvents, Ev>,
         options?: Parameters<EventTarget["addEventListener"]>[2],
-    ): Fn<never, void> {
+    ): Fn<never[], void> {
         this.on(type, callback, options);
 
         return () => {
