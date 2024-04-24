@@ -1,20 +1,20 @@
 {
-    "deno.enable": true,
-    "deno.lint": true,
-    "deno.unstable": true,
-    "deno.config": "./deno.jsonc",
-    "editor.formatOnSave": true,
-    "editor.defaultFormatter": "denoland.vscode-deno",
-    "deno.codeLens.references": true,
-    "deno.codeLens.implementations": true,
-    "deno.codeLens.test": true,
-    "deno.testing.enable": true,
-    "emeraldwalk.runonsave": {
-        "commands": [
-            {
-                "match": ".*",
-                "cmd": "deno fmt ${file}"
-            }
-        ]
-    }
+  "deno.enable": true,
+  "deno.lint": true,
+  "deno.unstable": true,
+  "deno.config": "./deno.jsonc",
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "denoland.vscode-deno",
+  "deno.codeLens.references": true,
+  "deno.codeLens.implementations": true,
+  "deno.codeLens.test": true,
+  "deno.testing.enable": true,
+  "emeraldwalk.runonsave": {
+    "commands": [
+      {
+        "match": ".*",
+        "cmd": "deno fmt ${file}"
+      }
+    ]
+  }
 }

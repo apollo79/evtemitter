@@ -21,18 +21,21 @@ There are different ways to use this EventEmitter:
 
 - You can use it without typed events, like an untyped EventEmitter:
   ```typescript
-  import { EventEmitter } from "https://deno.land/x/evtemitter@2.0.0/mod.ts";
+  // JSR
+  import { EventEmitter } from "@apollo79/evtemitter";
+  // or alternatively https://deno.land/x/
+  // import { EventEmitter } from "https://deno.land/x/evtemitter@2.0.0/mod.ts";
 
   const target = new EventEmitter();
 
   target.on("foo", (detail) => {
-      console.log(detail); // undefined
+    console.log(detail); // undefined
   });
 
   target.emit("foo");
 
   target.on("bar", (detail) => {
-      console.log(detail); // hello world
+    console.log(detail); // hello world
   });
 
   target.emit("bar", "hello world");
@@ -44,14 +47,14 @@ There are different ways to use this EventEmitter:
   import { EventEmitter } from "https://deno.land/x/evtemitter@2.0.0/mod.ts";
 
   type Events = {
-      foo: undefined;
-      bar: string;
+    foo: undefined;
+    bar: string;
   };
 
   const emitter = new EventEmitter<Events>();
 
   target.on("foo", (detail) => {
-      console.log("Foo has been emitted");
+    console.log("Foo has been emitted");
   });
 
   // works
@@ -61,7 +64,7 @@ There are different ways to use this EventEmitter:
   // target.emit("foo", "hello world");
 
   target.once("bar", (detail) => {
-      console.log("Bar has been emitted");
+    console.log("Bar has been emitted");
   });
 
   // works
@@ -72,9 +75,9 @@ There are different ways to use this EventEmitter:
   ```
 
 - And you can use it with reserved events, which is for example useful if you
-  want to only allow to emit `message` events from anyone but in your class you
-  want to emit a `connection` event. Of course, this type of emitter is also
-  strongly typed and provides autocompletion:
+  want to allow everyone to emit `message` events but in your class you want to
+  emit a `connection` event. Of course, this type of emitter is also strongly
+  typed and provides autocompletion:
   ```typescript
   import { EventEmitter } from "https://deno.land/x/evtemitter@2.0.0/mod.ts";
 
